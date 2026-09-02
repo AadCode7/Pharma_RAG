@@ -1,0 +1,94 @@
+# Progress Log — Pharma RAG Project
+
+> Review this file at the start of every session before making changes, so decisions aren't re-litigated and nothing gets lost between sessions.
+
+## Current Status: V1 rewritten in Python/FastAPI. Not yet deployed or tested against live services.
+
+---
+
+## Completed
+
+### Planning
+- Defined two-phase scope (V1 baseline → V2 experimentation).
+- Clarified requirements: free/cheap cloud APIs (Groq, Hugging Face); no golden eval set yet (deferred); sync = upload + optional S3 later, with a hard requirement that stale chunks are never retrievable; RBAC with department-based visibility; Supabase Auth with seamless social login.
+- Wrote `architecture.md` — approved by user.
+
+### V1 build — Node.js version (superseded)
+First pass was built as Vercel serverless functions in Node.js. User asked for a full rewrite in Python, in a specific folder structure. **The Node.js code is no longer the active version** — noting it here only so nobody wonders why the decision log below mentions things that read as "Node.js reasoning."
+
+### V1 build — Python/FastAPI version (current)
+Full rewrite, same schema and governance logic, structured as:
+- `database/migrations/0001_initial_schema.sql` — unchanged from the Node.js version; schema/RLS don't depend on backend language.
+- `config/settings.py` — pydantic-settings, single `settings` object.
+- `database/client.py` — service-role client (bypasses RLS, backend-only) + user-scoped client (RLS does the filtering).
+- `exception/` — `AppError` hierarchy + FastAPI handlers, so routes raise instead of hand-rolling status codes.
+- `logger/logger.py` — shared logger factory.
+- `utils/text.py`, `utils/hashing.py` — fixed-size chunker (V1 baseline, tagged `fixed_size_v1`), content hashing for version tracking.
+- `prompt_lib/rag_prompts.py` — system prompt + prompt builder, separated out so V2 can add a groundedness-judge prompt later without touching API-calling code.
+- `api/models/chunk.py` — `ChunkDraft` domain dataclass (kept distinct from `schemas/`, which are API-facing pydantic contracts).
+- `schemas/` — pydantic request/response models for query, ingest, documents, traces.
+- `api/services/` — `rbac_service` (session verification + manager check), `embedding_service` (HF), `llm_service` (Groq), `retrieval_service` (calls `match_chunks` RPC), `ingestion_service` (orchestrates upload/versioning/chunking/embedding, enforces stale-chunk deactivation), `tracing_service`.
+- `api/routes/` — one file per resource, thin — auth + validation + calling the right service.
+- `api/main.py` — FastAPI app, mounts routers under `/api`, serves the frontend (`/` → Jinja2 template, `/static` → CSS/JS, `/config.js` → dynamically rendered public Supabase config instead of a static file that needed manual editing).
+- Frontend (`api/static/styles.css`, `api/static/app.js`, `api/templates/index.html`) — carried over from the Node.js version essentially unchanged; frontend behavior doesn't depend on backend language, only the API paths matter and those stayed the same (`/api/query`, `/api/ingest`, etc.).
+- `requirements.txt`, `vercel.json`, `.env.example`, `README.md`.
+
+---
+
+## Known Risks / Things To Verify (not yet tested)
+
+Same sandbox network limitation as before — no access to huggingface.co, groq.com, or supabase.co from here, so nothing below has been runtime-tested:
+
+1. **Hugging Face embeddings** (`api/services/embedding_service.py`) — still the highest risk; see README §3a for the verification curl command. Unchanged from the Node.js version's risk.
+2. **`supabase-py` Storage upload signature** (`api/services/ingestion_service.py`) — **new risk introduced by this rewrite.** The Python SDK's `storage.from_(...).upload(...)` call signature (positional args, file-options dict key names) has shifted across `supabase-py` versions. Verify against whatever version actually installs — see README §3b.
+3. **`supabase-py` RPC/query builder syntax** (`api/services/retrieval_service.py`, and the `.single()`/`.in_()`/`.is_()` calls throughout `ingestion_service.py`) — written against the documented v2 API; worth a smoke test since Python client method names occasionally differ subtly from the JS client's (e.g. `in_` and `is_` have trailing underscores to avoid shadowing Python keywords — easy to typo).
+4. **FastAPI on Vercel's Python runtime, with static files** (`vercel.json`) — this combination (ASGI app + `StaticFiles` mount + Jinja2 templates, all bundled via `includeFiles`) is less common and less battle-tested on Vercel than the plain Node.js serverless-functions approach used in the first version. If static assets 404 after deploying, see the fallback note in README §4.
+5. Everything already flagged in the Node.js version that's unrelated to language (RLS correctness, Groq model name currency, Apple OAuth setup) still applies — re-verify since it's a from-scratch rewrite, not a port with guarantees.
+
+---
+
+## Not Yet Started
+
+- [ ] Running the migration against a live Supabase project
+- [ ] End-to-end smoke test (sign up → promote to manager → upload a doc → query it → see it in Trace/Sources)
+- [ ] Vercel deployment
+- [ ] Golden eval set + eval harness — **blocked on user providing/curating the eval set**
+- [ ] S3 sync job
+- [ ] PDF/DOCX ingestion (V1 is plain text only)
+- [ ] V2: chunking strategy comparisons, multiple embedding models, BM25/hybrid retrieval, reranking
+
+---
+
+## Errors / Issues Encountered
+
+**During this rewrite, I was able to actually test the parts that don't need network access to huggingface.co/groq.com/supabase.co** (pip install works — pypi.org is reachable):
+
+- `pip install -r requirements.txt` — hit one conflict: `PyJWT` was pre-installed by the OS and blocked reinstall. Fixed with `--ignore-installed PyJWT`. Not expected to recur in a normal deploy environment (Vercel builds fresh), but worth knowing if you hit it in a different sandbox/container.
+- Imported the full FastAPI app (`from api.main import app`) with dummy env vars — **it wired up cleanly**: all 5 routers, all service imports, static mount, templates, `/config.js`, `/health`. This rules out import errors, circular imports, and wrong attribute/method names in the wiring itself.
+- Ran the pure-logic pieces end to end: `chunk_fixed_size` (correct chunk boundaries and count on a ~2500-char sample), `sha256_hash` (deterministic, change-sensitive), `build_user_prompt` (correct `[1]`-style citation formatting), `normalize_embedding_output` (correctly handles both the pooled-vector and token-level-needing-mean-pooling response shapes described in the Known Risks section).
+
+**Still not tested** (genuinely can't be, without network access to the three external services): the actual HTTP calls to Hugging Face, Groq, and Supabase (auth, table queries, RPC, storage upload). Those remain real risks — see above — but everything that was possible to verify from this sandbox has been.
+
+---
+
+## Key Decisions Log (do not re-litigate without reason)
+
+| Decision | Rationale |
+|---|---|
+| **Rewrote V1 backend from Node.js to Python/FastAPI** | Explicit user request, with a specified folder structure (api/{models,routes,services,static,templates}, config, database, exception, logger, prompt_lib, schemas, utils) |
+| `schemas/` (pydantic API contracts) kept separate from `api/models/` (internal domain shapes) | Keeps request/response validation concerns separate from internal representations — a schema can change to match a client need without forcing a change to how the pipeline represents a chunk internally |
+| `services/` layer is the only place that calls external APIs or the DB directly | Routes stay thin (auth + validation + delegate); business logic is testable independent of FastAPI |
+| Custom `AppError` exception hierarchy + FastAPI exception handlers, instead of routes returning error JSON manually | One place defines the error→status-code mapping; routes just `raise` |
+| `/config.js` is a FastAPI route rendering settings server-side, not a static file | Removes the "remember to hand-edit config.js before every deploy" step the Node.js version had |
+| JSON response keys stayed camelCase (`requestId`, `versionNumber`, etc.) instead of switching to Python-idiomatic snake_case | Frontend JS was carried over unchanged; matching its expected keys avoided touching working frontend code for a backend-only rewrite |
+| Documents are versioned, never overwritten/deleted; department access enforced inside `match_chunks` before ranking; custom in-house tracing — | **unchanged from the original architecture**, since none of this is language-specific. See architecture.md §3 for the reasoning. |
+
+---
+
+## Next Step
+
+1. User runs the migration on a real Supabase project.
+2. Verify the two Python-specific integration points flagged above (HF embeddings call, Supabase Storage upload) before trusting them.
+3. Smoke-test the full pipeline end to end locally (`uvicorn api.main:app --reload`) before deploying.
+4. Deploy to Vercel; if the Python + static-files combination misbehaves, fall back per README §4.
+5. Report back any errors hit during setup so they get logged here before moving on to V2 or the eval harness.

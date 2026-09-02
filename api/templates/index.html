@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pharma RAG — Knowledge Base</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
+</head>
+<body>
+
+<!-- ============ AUTH SCREEN ============ -->
+<main id="auth-screen" class="auth-screen">
+  <div class="auth-card">
+    <p class="auth-mark">Pharma RAG</p>
+    <h1 class="auth-title">Ask the knowledge base.<br>See exactly where the answer came from.</h1>
+    <p class="auth-sub">Sign in with your company account. Access to documents is scoped to your department automatically.</p>
+
+    <div class="auth-actions">
+      <button id="btn-google" class="btn btn-oauth">
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.9v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.66 9c0-.59.1-1.17.29-1.7V4.97H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.03l3.05-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.97l3.05 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+        Continue with Google
+      </button>
+      <button id="btn-apple" class="btn btn-oauth btn-oauth-dark">
+        <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true" fill="currentColor"><path d="M13.1 9.5c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.1.8-.6 0-1.6-.7-2.7-.7-1.4 0-2.7.8-3.4 2-1.4 2.5-.4 6.2 1.1 8.2.7 1 1.5 2.1 2.6 2 1-.1 1.4-.7 2.7-.7s1.6.7 2.7.6c1.1 0 1.8-1 2.5-2 .8-1.2 1.1-2.3 1.1-2.4-.1 0-2.2-.8-2.3-3zM11 3.3c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6 1 .1 1.9-.5 2.5-1.2z"/></svg>
+        Continue with Apple
+      </button>
+    </div>
+
+    <div class="auth-divider"><span>or</span></div>
+
+    <form id="magic-link-form" class="auth-magic">
+      <input id="magic-link-email" type="email" placeholder="you@company.com" required />
+      <button type="submit" class="btn btn-primary">Send sign-in link</button>
+    </form>
+    <p id="magic-link-status" class="auth-status" hidden></p>
+  </div>
+</main>
+
+<!-- ============ APP SHELL ============ -->
+<div id="app-shell" class="app-shell" hidden>
+  <nav class="sidebar">
+    <p class="sidebar-mark">Pharma RAG</p>
+    <ul class="sidebar-nav">
+      <li><button class="nav-item is-active" data-section="query">Query</button></li>
+      <li><button class="nav-item" data-section="trace">Pipeline Trace</button></li>
+      <li><button class="nav-item" data-section="sources">Sources</button></li>
+      <li><button class="nav-item" data-section="eval">Evaluation</button></li>
+      <li><button class="nav-item" data-section="admin" id="nav-admin" hidden>Knowledge Base</button></li>
+    </ul>
+    <div class="sidebar-footer">
+      <p id="user-name" class="sidebar-user"></p>
+      <p id="user-role" class="sidebar-role"></p>
+      <button id="btn-sign-out" class="btn-text">Sign out</button>
+    </div>
+  </nav>
+
+  <main class="content">
+
+    <!-- ---- QUERY ---- -->
+    <section id="section-query" class="panel">
+      <header class="panel-header">
+        <h2>Query</h2>
+        <p>Ask a question. The answer is generated only from documents your department can see.</p>
+      </header>
+
+      <form id="query-form" class="query-form">
+        <textarea id="query-input" placeholder="e.g. What's the current storage temperature requirement for Compound X?" rows="3" required></textarea>
+        <button type="submit" class="btn btn-primary" id="query-submit">Ask</button>
+      </form>
+
+      <div id="query-result" class="query-result" hidden>
+        <div class="answer-block">
+          <p class="label">Answer</p>
+          <p id="answer-text" class="answer-text"></p>
+        </div>
+        <div class="sources-inline">
+          <p class="label">Sources used</p>
+          <ul id="answer-sources" class="source-chip-list"></ul>
+        </div>
+        <p class="trace-link">
+          <button id="view-trace-btn" class="btn-text">View full pipeline trace for this answer →</button>
+        </p>
+      </div>
+
+      <div id="query-empty" class="empty-state">
+        <p>No question asked yet. Try one above — the retrieved chunks, similarity scores, and full generation prompt will all be visible in Pipeline Trace once you do.</p>
+      </div>
+    </section>
+
+    <!-- ---- PIPELINE TRACE ---- -->
+    <section id="section-trace" class="panel" hidden>
+      <header class="panel-header">
+        <h2>Pipeline Trace</h2>
+        <p>Every stage of the last 10 queries you've run: chunking, retrieval, and generation.</p>
+      </header>
+      <div class="trace-layout">
+        <ul id="trace-list" class="trace-list"></ul>
+        <div id="trace-detail" class="trace-detail">
+          <p class="empty-state">Select a query on the left to inspect its pipeline.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---- SOURCES ---- -->
+    <section id="section-sources" class="panel" hidden>
+      <header class="panel-header">
+        <h2>Sources</h2>
+        <p>Documents visible to you, with version history. Superseded versions are kept for audit but never used in retrieval.</p>
+      </header>
+      <ul id="sources-list" class="doc-list"></ul>
+    </section>
+
+    <!-- ---- EVALUATION ---- -->
+    <section id="section-eval" class="panel" hidden>
+      <header class="panel-header">
+        <h2>Evaluation</h2>
+        <p>Retrieval and generation quality, measured against a labeled query set.</p>
+      </header>
+      <div class="empty-state eval-empty">
+        <p class="eval-empty-title">No evaluation runs yet</p>
+        <p>This dashboard renders Recall@k, Precision@k, MRR, and groundedness scores once a golden query set (questions with known-correct source chunks) is loaded into <code>eval_queries</code>. That's the next V1 milestone — see <code>progress.md</code>.</p>
+        <p>Once it exists, run the eval harness to populate <code>eval_runs</code> / <code>eval_results</code>, and this table fills in automatically — including a side-by-side comparison once V2 strategies are added.</p>
+      </div>
+    </section>
+
+    <!-- ---- ADMIN ---- -->
+    <section id="section-admin" class="panel" hidden>
+      <header class="panel-header">
+        <h2>Knowledge Base</h2>
+        <p>Add documents or publish a new version. Updating a document immediately retires its old chunks from retrieval.</p>
+      </header>
+
+      <form id="upload-form" class="upload-form">
+        <label>
+          Document title
+          <input id="upload-title" type="text" required placeholder="e.g. SOP-4471: Cold Chain Handling" />
+        </label>
+
+        <label>
+          Content (.txt file, or paste text below)
+          <input id="upload-file" type="file" accept=".txt,.md" />
+        </label>
+
+        <label>
+          <textarea id="upload-text" rows="8" placeholder="Paste document text here if not uploading a file..."></textarea>
+        </label>
+
+        <fieldset id="upload-departments" class="dept-fieldset">
+          <legend>Visible to departments</legend>
+          <div id="dept-checkboxes" class="dept-checkboxes"></div>
+        </fieldset>
+
+        <input type="hidden" id="upload-existing-doc-id" value="" />
+        <button type="submit" class="btn btn-primary" id="upload-submit">Publish document</button>
+        <p id="upload-status" class="auth-status" hidden></p>
+      </form>
+
+      <h3 class="admin-subhead">Existing documents</h3>
+      <ul id="admin-doc-list" class="doc-list"></ul>
+    </section>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/config.js"></script>
+<script src="{{ url_for('static', path='app.js') }}"></script>
+</body>
+</html>
