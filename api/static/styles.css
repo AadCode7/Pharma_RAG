@@ -81,9 +81,6 @@ code {
 .btn-primary:hover { background: var(--accent); border-color: var(--accent); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.btn-oauth { width: 100%; justify-content: center; }
-.btn-oauth-dark { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-
 .btn-text {
   background: none;
   border: none;
@@ -96,79 +93,171 @@ code {
 }
 
 /* ===========================================================
-   Auth screen
+   Auth screen — deliberately its own visual language (system
+   font, black pill buttons, soft card on light gray), modeled
+   on Apple ID's sign-in page. Distinct on purpose from the
+   in-app dashboard styling below, the way a login screen
+   usually is from the product behind it.
 =========================================================== */
+:root {
+  --apple-bg: #F5F5F7;
+  --apple-ink: #1D1D1F;
+  --apple-muted: #6E6E73;
+  --apple-line: #D2D2D7;
+  --apple-blue: #0071E3;
+  --apple-error: #D70015;
+  --font-apple: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
 .auth-screen {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem;
+  background: var(--apple-bg);
+  font-family: var(--font-apple);
 }
 
 .auth-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 380px;
+  background: #fff;
+  border-radius: 20px;
+  padding: 2.5rem 2.25rem;
+  box-shadow: 0 2px 24px rgba(0, 0, 0, 0.08);
+  text-align: center;
 }
 
 .auth-mark {
-  font-family: var(--font-data);
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
-  color: var(--accent);
-  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--apple-ink);
+  letter-spacing: -0.01em;
+  margin: 0 0 1.75rem;
 }
 
 .auth-title {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: 2rem;
-  line-height: 1.25;
-  margin: 0 0 0.75rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--apple-ink);
+  letter-spacing: -0.02em;
+  margin: 0 0 0.4rem;
 }
 
 .auth-sub {
-  color: var(--ink-soft);
-  margin: 0 0 2rem;
-  max-width: 38ch;
+  font-size: 0.9rem;
+  color: var(--apple-muted);
+  margin: 0 0 1.75rem;
 }
 
-.auth-actions {
+.auth-form {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.9rem;
+  text-align: left;
 }
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.field-group label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--apple-ink);
+}
+.field-group input {
+  border: 1px solid var(--apple-line);
+  border-radius: 12px;
+  padding: 0.75em 0.9em;
+  font-size: 0.95rem;
+  background: #fff;
+  font-family: var(--font-apple);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.field-group input:focus {
+  outline: none;
+  border-color: var(--apple-blue);
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.12);
+}
+
+.btn-apple-primary {
+  width: 100%;
+  background: var(--apple-ink);
+  color: #fff;
+  border: none;
+  border-radius: 980px;
+  padding: 0.8em 1em;
+  font-size: 0.95rem;
+  font-weight: 500;
+  font-family: var(--font-apple);
+  cursor: pointer;
+  margin-top: 0.3rem;
+  transition: background 0.15s ease;
+}
+.btn-apple-primary:hover { background: #000; }
+.btn-apple-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-apple-secondary {
+  width: 100%;
+  background: #fff;
+  color: var(--apple-ink);
+  border: 1px solid var(--apple-line);
+  border-radius: 980px;
+  padding: 0.75em 1em;
+  font-size: 0.9rem;
+  font-weight: 500;
+  font-family: var(--font-apple);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  transition: background 0.15s ease;
+}
+.btn-apple-secondary:hover { background: var(--apple-bg); }
 
 .auth-divider {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: 1.5rem 0;
-  color: var(--muted);
-  font-size: 0.85rem;
+  margin: 1.5rem 0 1.1rem;
+  color: var(--apple-muted);
+  font-size: 0.8rem;
 }
 .auth-divider::before, .auth-divider::after {
   content: "";
   flex: 1;
   height: 1px;
-  background: var(--line);
-}
-
-.auth-magic { display: flex; gap: 0.5rem; }
-.auth-magic input {
-  flex: 1;
-  padding: 0.65em 0.9em;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--surface);
+  background: var(--apple-line);
 }
 
 .auth-status {
-  margin-top: 0.75rem;
-  font-size: 0.9rem;
-  color: var(--accent);
+  font-size: 0.85rem;
+  margin-top: 1rem;
+  color: var(--apple-ink);
 }
-.auth-status.is-error { color: var(--error); }
+.auth-status.is-error { color: var(--apple-error); }
+
+.auth-toggle {
+  margin-top: 1.75rem;
+  font-size: 0.85rem;
+  color: var(--apple-muted);
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--apple-blue);
+  font-family: var(--font-apple);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.15rem;
+}
+.link-btn:hover { text-decoration: underline; }
 
 /* ===========================================================
    App shell

@@ -2,7 +2,7 @@
 
 > Review this file at the start of every session before making changes, so decisions aren't re-litigated and nothing gets lost between sessions.
 
-## Current Status: V1 rewritten in Python/FastAPI. Not yet deployed or tested against live services.
+## Current Status: V1 rewritten in Python/FastAPI. Auth screen redone (email/password + Google, Apple-ID-styled). Not yet deployed or tested against live services.
 
 ---
 
@@ -33,6 +33,17 @@ Full rewrite, same schema and governance logic, structured as:
 - Frontend (`api/static/styles.css`, `api/static/app.js`, `api/templates/index.html`) — carried over from the Node.js version essentially unchanged; frontend behavior doesn't depend on backend language, only the API paths matter and those stayed the same (`/api/query`, `/api/ingest`, etc.).
 - `requirements.txt`, `vercel.json`, `.env.example`, `README.md`.
 
+### Auth screen redesign (this session)
+User feedback: "Continue with Apple" was a misreading — they meant the sign-in *page* should look like Apple ID's page, not that Apple should be an OAuth option; and they wanted real email/password auth (sign in + create account) instead of a magic-link-only flow.
+
+- Removed the "Continue with Apple" OAuth button entirely.
+- Removed the magic-link-only form.
+- Added an email/password form (`api/templates/index.html` `#auth-form`) with a sign-in ⇄ create-account toggle (`app.js` `setAuthMode()`), driving `sb.auth.signInWithPassword()` and `sb.auth.signUp()` directly. Sign-up collects a full name and passes it as `options.data.full_name`, which the `handle_new_user()` trigger in the migration picks up for `profiles.full_name`.
+- Handles the case where Supabase has email confirmation turned on (no session returned from `signUp` → show a "check your email" message and drop back to sign-in mode) vs. off (session returned → `onAuthStateChange` fires and enters the app automatically). Not able to test which path a fresh Supabase project defaults to — verify against your project's Auth settings.
+- Kept "Continue with Google" as the only OAuth option, per the request.
+- Restyled the auth screen specifically to resemble Apple ID's sign-in page (system font stack, black pill-shaped buttons, soft white card on light-gray page, blue focus ring) — deliberately a different visual language from the rest of the app (`architecture.md`'s clinical/lab-notebook system), the way a login screen is often visually distinct from the product behind it.
+- Verified structurally (no live Supabase to test against): every element ID referenced in `app.js` exists in `index.html`, and `app.js` parses as valid JS.
+
 ---
 
 ## Known Risks / Things To Verify (not yet tested)
@@ -43,7 +54,8 @@ Same sandbox network limitation as before — no access to huggingface.co, groq.
 2. **`supabase-py` Storage upload signature** (`api/services/ingestion_service.py`) — **new risk introduced by this rewrite.** The Python SDK's `storage.from_(...).upload(...)` call signature (positional args, file-options dict key names) has shifted across `supabase-py` versions. Verify against whatever version actually installs — see README §3b.
 3. **`supabase-py` RPC/query builder syntax** (`api/services/retrieval_service.py`, and the `.single()`/`.in_()`/`.is_()` calls throughout `ingestion_service.py`) — written against the documented v2 API; worth a smoke test since Python client method names occasionally differ subtly from the JS client's (e.g. `in_` and `is_` have trailing underscores to avoid shadowing Python keywords — easy to typo).
 4. **FastAPI on Vercel's Python runtime, with static files** (`vercel.json`) — this combination (ASGI app + `StaticFiles` mount + Jinja2 templates, all bundled via `includeFiles`) is less common and less battle-tested on Vercel than the plain Node.js serverless-functions approach used in the first version. If static assets 404 after deploying, see the fallback note in README §4.
-5. Everything already flagged in the Node.js version that's unrelated to language (RLS correctness, Groq model name currency, Apple OAuth setup) still applies — re-verify since it's a from-scratch rewrite, not a port with guarantees.
+5. Everything already flagged in the Node.js version that's unrelated to language (RLS correctness, Groq model name currency) still applies — re-verify since it's a from-scratch rewrite, not a port with guarantees. (Apple OAuth setup is no longer relevant — that option was removed per the auth redesign above.)
+6. **Whether your Supabase project requires email confirmation on sign-up** — determines which of the two code paths in the sign-up handler actually fires. Check Authentication → Settings → "Confirm email" in the Supabase dashboard.
 
 ---
 

@@ -24,18 +24,83 @@ document.getElementById('btn-google').addEventListener('click', () => {
   sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
 });
 
-document.getElementById('btn-apple').addEventListener('click', () => {
-  sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: window.location.origin } });
-});
+// --- Email/password sign in <-> create account toggle ---
 
-document.getElementById('magic-link-form').addEventListener('submit', async (e) => {
+let authMode = 'signin';
+
+const authForm = document.getElementById('auth-form');
+const authHeading = document.getElementById('auth-heading');
+const authSubtitle = document.getElementById('auth-subtitle');
+const authSubmit = document.getElementById('auth-submit');
+const authToggleBtn = document.getElementById('auth-toggle-btn');
+const authToggleText = document.getElementById('auth-toggle-text');
+const fullnameGroup = document.getElementById('fullname-group');
+const authStatus = document.getElementById('auth-status');
+const authPasswordInput = document.getElementById('auth-password');
+
+function setAuthMode(mode) {
+  authMode = mode;
+  authStatus.hidden = true;
+
+  if (mode === 'signup') {
+    authHeading.textContent = 'Create your account';
+    authSubtitle.textContent = 'Get started with your work email.';
+    authSubmit.textContent = 'Create Account';
+    fullnameGroup.hidden = false;
+    authPasswordInput.setAttribute('autocomplete', 'new-password');
+    authToggleText.textContent = 'Already have an account?';
+    authToggleBtn.textContent = 'Sign in';
+  } else {
+    authHeading.textContent = 'Sign in';
+    authSubtitle.textContent = 'Use your email and password.';
+    authSubmit.textContent = 'Sign In';
+    fullnameGroup.hidden = true;
+    authPasswordInput.setAttribute('autocomplete', 'current-password');
+    authToggleText.textContent = "Don't have an account?";
+    authToggleBtn.textContent = 'Create one';
+  }
+}
+
+authToggleBtn.addEventListener('click', () => setAuthMode(authMode === 'signin' ? 'signup' : 'signin'));
+
+authForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const email = document.getElementById('magic-link-email').value;
-  const statusEl = document.getElementById('magic-link-status');
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
-  statusEl.hidden = false;
-  statusEl.className = error ? 'auth-status is-error' : 'auth-status';
-  statusEl.textContent = error ? error.message : `Check ${email} for a sign-in link.`;
+  const email = document.getElementById('auth-email').value.trim();
+  const password = authPasswordInput.value;
+  const fullName = document.getElementById('auth-fullname').value.trim();
+
+  authSubmit.disabled = true;
+  authSubmit.textContent = authMode === 'signup' ? 'Creating…' : 'Signing in…';
+  authStatus.hidden = true;
+
+  try {
+    if (authMode === 'signup') {
+      const { data, error } = await sb.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullName } },
+      });
+      if (error) throw error;
+      if (!data.session) {
+        // Email confirmation is required before a session is issued.
+        authStatus.hidden = false;
+        authStatus.className = 'auth-status';
+        authStatus.textContent = `Check ${email} to confirm your account, then sign in.`;
+        setAuthMode('signin');
+      }
+      // If a session was returned, onAuthStateChange fires and enters the app.
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    }
+  } catch (err) {
+    authStatus.hidden = false;
+    authStatus.className = 'auth-status is-error';
+    authStatus.textContent = err.message;
+  } finally {
+    authSubmit.disabled = false;
+    authSubmit.textContent = authMode === 'signup' ? 'Create Account' : 'Sign In';
+  }
 });
 
 document.getElementById('btn-sign-out').addEventListener('click', () => sb.auth.signOut());
