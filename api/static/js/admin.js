@@ -54,7 +54,13 @@ async function loadAdminDocs() {
       deleteBtn.textContent = 'Delete';
       deleteBtn.addEventListener('click', () => handleDeleteDocument(doc, deleteBtn));
 
-      actions.append(versionBtn, deleteBtn);
+      const repairBtn = document.createElement('button');
+      repairBtn.className = 'btn-text';
+      repairBtn.textContent = 'Repair embeddings';
+      repairBtn.title = 'Re-embed chunks that are missing vectors (e.g. after a failed upload)';
+      repairBtn.addEventListener('click', () => handleRepairEmbeddings(doc, repairBtn));
+
+      actions.append(versionBtn, repairBtn, deleteBtn);
       li.appendChild(actions);
     });
   } catch (err) {
@@ -82,6 +88,27 @@ async function handleDeleteDocument(doc, btn) {
     btn.disabled = false;
     btn.textContent = 'Delete';
     window.alert(`Could not delete "${doc.title}": ${err.message}`);
+  }
+}
+
+async function handleRepairEmbeddings(doc, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Repairing…';
+
+  try {
+    const result = await apiFetch(`/api/documents/${doc.id}/reembed`, { method: 'POST' });
+    if (result.repaired === 0) {
+      window.alert(`"${doc.title}" already has embeddings for all ${result.chunksTotal} active chunks.`);
+    } else {
+      window.alert(
+        `Repaired "${doc.title}": embedded ${result.repaired} of ${result.chunksTotal} active chunks.`
+      );
+    }
+  } catch (err) {
+    window.alert(`Could not repair "${doc.title}": ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Repair embeddings';
   }
 }
 

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 from api.services.embedding_service import embed_texts
 from api.services.llm_service import generate_answer
 from api.services.rbac_service import require_user
-from api.services.retrieval_service import match_chunks
+from api.services.retrieval_service import diversify_chunks, match_chunks
 from api.services.tracing_service import log_trace
 from schemas.query import QueryRequest
 
@@ -27,9 +27,13 @@ async def run_query(payload: QueryRequest, request: Request):
     latency["embedding_ms"] = int((time.perf_counter() - t_embed) * 1000)
 
     # 2. Retrieve — department filtering happens inside match_chunks itself,
-    # before ranking. See database/migrations/0001 for the RPC.
+    # before ranking. See database/migrations/0001 for the RPC. Fetch extra
+    # candidates, then diversify so one large document can't monopolize every
+    # slot and hide other documents from the LLM context.
     t_retrieve = time.perf_counter()
-    matches = match_chunks(query_embedding, payload.k, user_id)
+    candidate_count = min(max(payload.k * 4, payload.k), 40)
+    candidates = match_chunks(query_embedding, candidate_count, user_id)
+    matches = diversify_chunks(candidates, payload.k, max_per_document=2)
     latency["retrieval_ms"] = int((time.perf_counter() - t_retrieve) * 1000)
 
     if not matches:

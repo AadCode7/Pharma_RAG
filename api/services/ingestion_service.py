@@ -207,3 +207,60 @@ async def delete_document(document_id: str) -> None:
             logger.error(f"Failed to remove storage files for document {document_id}: {exc}")
 
     service.table("documents").delete().eq("id", document_id).execute()
+
+
+async def repair_document_embeddings(document_id: str) -> dict:
+    """Re-embed active chunks that are missing chunk_embeddings rows.
+
+    This repairs documents that were ingested while the embedding API was
+    failing — those chunks exist with is_active=true but never appear in
+    match_chunks() because the RPC joins from chunk_embeddings.
+    """
+    service = get_service_client()
+
+    doc = (
+        service.table("documents")
+        .select("id, current_version_id")
+        .eq("id", document_id)
+        .single()
+        .execute()
+    )
+    if not doc.data:
+        raise NotFoundError("Document not found")
+
+    version_id = doc.data.get("current_version_id")
+    if not version_id:
+        raise BadRequestError("Document has no published version to repair")
+
+    chunks = (
+        service.table("chunks")
+        .select("id, content")
+        .eq("document_version_id", version_id)
+        .eq("is_active", True)
+        .execute()
+    )
+    if not chunks.data:
+        raise BadRequestError("Document has no active chunks")
+
+    chunk_ids = [chunk["id"] for chunk in chunks.data]
+    existing = (
+        service.table("chunk_embeddings")
+        .select("chunk_id")
+        .in_("chunk_id", chunk_ids)
+        .eq("model_name", settings.embedding_model)
+        .execute()
+    )
+    embedded_ids = {row["chunk_id"] for row in (existing.data or [])}
+    missing = [chunk for chunk in chunks.data if chunk["id"] not in embedded_ids]
+    if not missing:
+        return {"repaired": 0, "chunksTotal": len(chunks.data)}
+
+    embeddings = await embed_texts([chunk["content"] for chunk in missing])
+    service.table("chunk_embeddings").insert(
+        [
+            {"chunk_id": chunk["id"], "model_name": settings.embedding_model, "embedding": embedding}
+            for chunk, embedding in zip(missing, embeddings)
+        ]
+    ).execute()
+
+    return {"repaired": len(missing), "chunksTotal": len(chunks.data)}
