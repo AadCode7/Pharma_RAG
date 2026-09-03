@@ -3,6 +3,7 @@ import httpx
 from config.settings import settings
 from exception.exceptions import UpstreamServiceError
 from prompt_lib.rag_prompts import SYSTEM_PROMPT, build_user_prompt
+from utils.llm_response import parse_structured_llm_response
 
 
 async def generate_answer(query: str, context_chunks: list[dict]) -> dict:
@@ -18,7 +19,7 @@ async def generate_answer(query: str, context_chunks: list[dict]) -> dict:
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                "temperature": 0.1,
+                "temperature": 0.0,
             },
         )
 
@@ -26,9 +27,15 @@ async def generate_answer(query: str, context_chunks: list[dict]) -> dict:
         raise UpstreamServiceError(f"Groq request failed ({response.status_code}): {response.text}")
 
     data = response.json()
+    raw_output = data["choices"][0]["message"]["content"]
+    parsed = parse_structured_llm_response(raw_output)
+
     return {
-        "answer": data["choices"][0]["message"]["content"],
+        "answer": parsed["answer"],
+        "reasoning": parsed["reasoning"],
+        "raw_output": parsed["raw"],
         "usage": data.get("usage"),
         "model": settings.groq_model,
-        "prompt_preview": user_prompt,
+        "system_prompt": SYSTEM_PROMPT,
+        "user_prompt": user_prompt,
     }

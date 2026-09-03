@@ -4,12 +4,21 @@
 <section class="panel">
   <header class="panel-header">
     <h2>Pipeline Trace</h2>
-    <p>Every stage of the last 10 queries you've run: chunking, retrieval, and generation.</p>
+    <p>Inspect retrieval, prompts, and model reasoning for recent queries. Select a query to open the pipeline view.</p>
   </header>
   <div class="trace-layout">
-    <ul id="trace-list" class="trace-list"></ul>
-    <div id="trace-detail" class="trace-detail">
-      <p class="empty-state">Select a query on the left to inspect its pipeline.</p>
+    <aside class="trace-sidebar">
+      <p class="trace-sidebar-label">Recent queries</p>
+      <ul id="trace-list" class="trace-list"></ul>
+    </aside>
+    <div id="trace-workspace" class="trace-workspace">
+      <div id="trace-detail" class="trace-detail">
+        <p class="empty-state">Select a query on the left to inspect its pipeline.</p>
+      </div>
+      <aside id="trace-gen-panel" class="trace-gen-panel" hidden>
+        <p class="trace-panel-label">Generation &amp; reasoning</p>
+        <div id="trace-gen-content"></div>
+      </aside>
     </div>
   </div>
 </section>
