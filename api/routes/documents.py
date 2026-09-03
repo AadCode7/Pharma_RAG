@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request
 
-from api.services.rbac_service import require_user
+from api.services.ingestion_service import delete_document
+from api.services.rbac_service import require_manager, require_user
 
 router = APIRouter(tags=["documents"])
 
@@ -18,11 +19,20 @@ async def list_documents(request: Request):
         user_client.table("documents")
         .select(
             "id, title, status, created_at, current_version_id, "
-            "document_versions!document_versions_document_id_fkey("
-            "id, version_number, created_at, superseded_at)"
+            "document_versions(id, version_number, created_at, superseded_at)"
         )
         .order("created_at", desc=True)
         .execute()
     )
 
     return {"documents": result.data}
+
+
+@router.delete("/documents/{document_id}")
+async def remove_document(document_id: str, request: Request):
+    user_id, _user_client, _token = require_user(request)
+    require_manager(user_id)
+
+    await delete_document(document_id)
+
+    return {"deleted": True, "documentId": document_id}

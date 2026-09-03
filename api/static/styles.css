@@ -498,6 +498,9 @@ pre.prompt-block {
 .badge-current { background: var(--accent-soft); color: var(--accent); }
 .badge-superseded { background: var(--amber-soft); color: var(--amber); }
 
+.doc-actions { display: flex; gap: 1rem; margin-top: 0.6rem; }
+.btn-text-danger { color: var(--error); }
+
 .upload-form { display: flex; flex-direction: column; gap: 1.1rem; max-width: 560px; margin-bottom: 2.5rem; }
 .upload-form label { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem; font-weight: 500; }
 .upload-form input[type="text"],

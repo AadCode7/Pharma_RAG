@@ -32,23 +32,56 @@ async function loadAdminDocs() {
     const { documents } = await apiFetch('/api/documents');
     renderDocList(list, documents); // defined in api-client.js — shared with sources.js
 
-    // Manager-only extra action: publish a new version of an existing document.
+    // Manager-only extra actions per document: publish a new version, or delete it entirely.
     Array.from(list.children).forEach((li, i) => {
       const doc = documents[i];
       if (!doc) return;
-      const btn = document.createElement('button');
-      btn.className = 'btn-text';
-      btn.style.marginTop = '0.5rem';
-      btn.textContent = 'Publish new version of this document';
-      btn.addEventListener('click', () => {
+
+      const actions = document.createElement('div');
+      actions.className = 'doc-actions';
+
+      const versionBtn = document.createElement('button');
+      versionBtn.className = 'btn-text';
+      versionBtn.textContent = 'Publish new version';
+      versionBtn.addEventListener('click', () => {
         document.getElementById('upload-existing-doc-id').value = doc.id;
         document.getElementById('upload-title').value = doc.title;
         document.getElementById('upload-title').scrollIntoView({ behavior: 'smooth' });
       });
-      li.appendChild(btn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn-text btn-text-danger';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.addEventListener('click', () => handleDeleteDocument(doc, deleteBtn));
+
+      actions.append(versionBtn, deleteBtn);
+      li.appendChild(actions);
     });
   } catch (err) {
     list.innerHTML = `<li style="color: var(--error);">${escapeHtml(err.message)}</li>`;
+  }
+}
+
+async function handleDeleteDocument(doc, btn) {
+  // Hard delete — every version, chunk, and embedding goes with it (see
+  // delete_document() in ingestion_service.py). Nothing is kept for audit,
+  // which is why this asks for confirmation instead of being one click.
+  const confirmed = window.confirm(
+    `Delete "${doc.title}" permanently?\n\nThis removes every version, chunk, and embedding. ` +
+      `It cannot be undone and nothing is kept for audit.`
+  );
+  if (!confirmed) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Deleting…';
+
+  try {
+    await apiFetch(`/api/documents/${doc.id}`, { method: 'DELETE' });
+    loadAdminDocs();
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Delete';
+    window.alert(`Could not delete "${doc.title}": ${err.message}`);
   }
 }
 

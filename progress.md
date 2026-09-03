@@ -2,7 +2,7 @@
 
 > Review this file at the start of every session before making changes, so decisions aren't re-litigated and nothing gets lost between sessions.
 
-## Current Status: V1 rewritten in Python/FastAPI, now a proper multi-page app (real routes, not hidden divs) with email/password + Google auth. Not yet deployed or tested against live services.
+## Current Status: V1 rewritten in Python/FastAPI, multi-page app with email/password + Google auth. User independently fixed PDF ingestion + HF endpoint; this session fixed the resulting orphaned-embeddings bug and added manager document deletion. Not yet deployed or tested against live services.
 
 ---
 
@@ -89,6 +89,33 @@ This one needs a flag, not just a fix: **`sb.auth.signUp()` / `signInWithPasswor
 
 ---
 
+### User-made fixes (before this session) — PDF ingestion + HF endpoint
+User independently fixed two things and shared the resulting files:
+- `api/services/embedding_service.py` — HF's inference API moved from `api-inference.huggingface.co/pipeline/feature-extraction/{model}` to `router.huggingface.co/hf-inference/models/{model}`; the old URL was returning errors. Added retry-with-backoff on `httpx.ConnectError`/`httpx.ReadTimeout` (3 attempts). **This confirms the "HF's free serverless inference routing has changed more than once" risk flagged in this file since the original build — it changed again.**
+- `api/services/ingestion_service.py` — strips NUL characters from extracted text before any DB write (Postgres `text` columns reject `\x00`, which PDF text extraction can produce) and rejects empty-after-cleanup text.
+- `api/static/js/admin.js` + `api/templates/admin.html` — added client-side PDF text extraction via pdf.js (`extractPdfText()`), accepts `.pdf` in the upload form now, in addition to `.txt`/`.md`.
+- Synced all four files into this repo as the new baseline before continuing.
+- **Stray file found and flagged, not merged**: an `app.js` was also uploaded, but it's the *old single-page-app version* from before the multi-page restructure (references `authScreen`, `showSection()`, section-toggle logic — none of which exist anymore). Told the user to delete it from their project if it's still sitting at `api/static/app.js`; nothing current references it.
+
+### Bug found and fixed (this session) — orphaned chunks with no embeddings
+**Root cause of the reported symptom** ("queried HPLC, only got HVAC chunks back"): in `ingest_document()`, `chunks` were written to the DB *before* `embed_texts()` was called. When the embedding call failed (which it was, before the HF endpoint fix above), the exception was raised *after* chunks already existed with `is_active = true` — but with zero matching rows in `chunk_embeddings`. `match_chunks()`'s RPC joins **from** `chunk_embeddings`, so a chunk with no embedding is invisible to retrieval, with no error anywhere. HPLC was almost certainly uploaded during the window when the old HF endpoint was failing; HVAC, uploaded after the fix, has real embeddings and works.
+
+**Fixed in `api/services/ingestion_service.py`** by reordering: chunk + embed the new text FIRST, before any chunk-related DB write. For a version update specifically, the old version's chunks are now only deactivated *after* the new version's chunks + embeddings are fully and successfully written — so a failed/flaky embedding call can no longer leave a document with zero active chunks (update case) or active-but-unembedded chunks (new-document case). Added `except Exception` cleanup that deletes a just-created document if anything fails partway through a new-document ingest, so a failed upload doesn't leave an invisible, version-less document behind either.
+
+**Residual known gap**: this isn't a real DB transaction (supabase-py/PostgREST doesn't expose one from Python) — there's still a small window between "new chunks + embeddings committed" and "old chunks deactivated" where both could theoretically be active if the deactivation step itself fails. Flagged as a future improvement (would need a Postgres RPC function wrapping the whole publish in one transaction), not fixed this session — low priority since it only matters if a very specific, very local DB call fails right after two others just succeeded.
+
+**For the actual HPLC document sitting in Supabase right now**: republishing it (Admin → "Publish new version") is the fix — same document, new version, now with a working embedding call. No need to delete anything for this specific case. Gave the user diagnostic SQL to confirm the exact cause first (checks for chunks with no `chunk_embeddings` row, and separately checks department tagging, since a wrong department assignment would look identical from the query results but needs a different fix).
+
+### Feature added (this session) — manager document deletion
+- `DELETE /api/documents/{document_id}` (manager-only, `api/routes/documents.py`) → `delete_document()` in `ingestion_service.py`.
+- Hard delete. `document_versions`, `chunks`, `chunk_embeddings`, and `document_departments` all already had `ON DELETE CASCADE` back to `documents` in the original migration — deleting the `documents` row alone removes every chunk and embedding, no schema change needed. Storage files (a separate system, no FK relationship) are explicitly removed first.
+- **This is a deliberate exception to `architecture.md`'s "documents are never deleted" principle**, which exists for regulatory audit-trail reasons. Implemented because it was explicitly requested for admin cleanup — flagged clearly in the code and here. If an audit trail needs to survive removal for a real (non-test) document, `documents.status = 'archived'` is the non-destructive alternative — archived docs are already excluded from retrieval via `match_chunks`' `d.status = 'active'` filter, without losing history.
+- `admin.js` — added a "Delete" action next to "Publish new version" per document, with a `confirm()` dialog before calling the endpoint (irreversible + no audit trail, so it shouldn't be one click).
+
+**Verified this session**: re-ran the FastAPI `TestClient` import/wiring check (new DELETE route registers correctly, `/admin` still renders), re-ran the JS syntax check on all 8 files in `api/static/js/`, and confirmed `.neq()` — used in the reordered deactivation logic — actually exists on the installed `supabase-py` query builder rather than assuming it from the JS client's API shape.
+
+---
+
 ## Known Risks / Things To Verify (not yet tested)
 
 Same sandbox network limitation as before — no access to huggingface.co, groq.com, or supabase.co from here, so nothing below has been runtime-tested:
@@ -98,8 +125,10 @@ Same sandbox network limitation as before — no access to huggingface.co, groq.
 3. **`supabase-py` RPC/query builder syntax** (`api/services/retrieval_service.py`, and the `.single()`/`.in_()`/`.is_()` calls throughout `ingestion_service.py`) — written against the documented v2 API; worth a smoke test since Python client method names occasionally differ subtly from the JS client's (e.g. `in_` and `is_` have trailing underscores to avoid shadowing Python keywords — easy to typo).
 4. **FastAPI on Vercel's Python runtime, with static files** (`vercel.json`) — this combination (ASGI app + `StaticFiles` mount + Jinja2 templates, all bundled via `includeFiles`) is less common and less battle-tested on Vercel than the plain Node.js serverless-functions approach used in the first version. If static assets 404 after deploying, see the fallback note in README §4.
 5. Everything already flagged in the Node.js version that's unrelated to language (RLS correctness, Groq model name currency) still applies — re-verify since it's a from-scratch rewrite, not a port with guarantees. (Apple OAuth setup is no longer relevant — that option was removed per the auth redesign above.)
-6. **Whether your Supabase project requires email confirmation on sign-up** — determines which of the two code paths in the sign-up handler actually fires. Check Authentication → Settings → "Confirm email" in the Supabase dashboard.
-7. **Auth is enforced client-side, by design, not by the server refusing the page** — `/admin`'s HTML shell is fetchable by anyone (it's just markup + a script tag), but it contains no data; `guard.js` redirects before any content is shown, and the actual document/trace data only comes back from `/api/*` routes that verify the session server-side. This is a normal pattern for a Supabase-Auth-in-localStorage app without server-side sessions — flagging it so it's a documented decision, not a discovered gap.
+6. **`storage.remove()` signature** (`delete_document()` in `ingestion_service.py`, new this session) — same category of risk as the existing storage `.upload()` note: `supabase-py`'s storage API has shifted across versions. Verify a real delete against your installed version before trusting it in production; if it's wrong, the DB delete still succeeds (it's called first-and-separately, wrapped in its own try/except) but orphaned files would accumulate in the storage bucket silently.
+7. **Whether your Supabase project requires email confirmation on sign-up** — determines which of the two code paths in the sign-up handler actually fires. Check Authentication → Settings → "Confirm email" in the Supabase dashboard.
+8. **Auth is enforced client-side, by design, not by the server refusing the page** — `/admin`'s HTML shell is fetchable by anyone (it's just markup + a script tag), but it contains no data; `guard.js` redirects before any content is shown, and the actual document/trace data only comes back from `/api/*` routes that verify the session server-side. This is a normal pattern for a Supabase-Auth-in-localStorage app without server-side sessions — flagging it so it's a documented decision, not a discovered gap.
+9. **Delete/deactivate is not a real DB transaction** — `ingest_document()`'s reordering (this session) closes the two most likely failure windows, but a Postgres RPC wrapping the whole publish in one transaction would close the rest. Not done this session; low priority (see the ingestion_service.py bug-fix note above for the exact residual gap).
 
 ---
 
