@@ -4,7 +4,7 @@
 <section class="panel">
   <header class="panel-header">
     <h2>Query</h2>
-    <p>Ask a question. The answer is generated only from documents your department can see.</p>
+    <p>Ask a question. Answers are generated only from retrieved document context your department can see.</p>
   </header>
 
   <form id="query-form" class="query-form">
@@ -14,20 +14,20 @@
 
   <div id="query-result" class="query-result" hidden>
     <div class="answer-block">
-      <p class="label">Answer</p>
+      <p class="label">Answer <span class="label-note">from retrieved context only</span></p>
       <p id="answer-text" class="answer-text"></p>
     </div>
     <div class="sources-inline">
-      <p class="label">Sources used</p>
-      <ul id="answer-sources" class="source-chip-list"></ul>
+      <p class="label">Source documents</p>
+      <ul id="answer-documents" class="source-doc-list"></ul>
     </div>
     <p class="trace-link">
-      <a id="view-trace-link" class="btn-text" href="/trace">View full pipeline trace for this answer →</a>
+      <a id="view-trace-link" class="btn-text" href="/trace">View pipeline trace, prompts, and model reasoning →</a>
     </p>
   </div>
 
   <div id="query-empty" class="empty-state">
-    <p>No question asked yet. Try one above — the retrieved chunks, similarity scores, and full generation prompt will all be visible in Pipeline Trace once you do.</p>
+    <p>No question asked yet. Try one above — the grounded answer and source documents will appear here. Prompts, retrieved chunks, and model reasoning are available in Pipeline Trace.</p>
   </div>
 </section>
 {% endblock %}

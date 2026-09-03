@@ -18,4 +18,7 @@ class QueryResponse(BaseModel):
     request_id: str
     answer: str
     sources: list[SourceChunk]
+    source_documents: list[dict] = Field(default_factory=list, alias="sourceDocuments")
     latency: dict
+
+    model_config = {"populate_by_name": True}

@@ -8,7 +8,9 @@ from api.services.llm_service import generate_answer
 from api.services.rbac_service import require_user
 from api.services.retrieval_service import diversify_chunks, match_chunks
 from api.services.tracing_service import log_trace
+from config.settings import settings
 from schemas.query import QueryRequest
+from utils.llm_response import unique_source_documents
 
 router = APIRouter(tags=["query"])
 
@@ -69,9 +71,13 @@ async def run_query(payload: QueryRequest, request: Request):
         payload.query,
         {
             "chunking_strategy": "fixed_size_v1",
+            "embedding_model": settings.embedding_model,
             "retrieved_chunks": matches,
-            "generation_prompt": generation["prompt_preview"],
-            "generation_output": generation["answer"],
+            "system_prompt": generation["system_prompt"],
+            "generation_prompt": generation["user_prompt"],
+            "generation_output": generation["raw_output"],
+            "grounded_answer": generation["answer"],
+            "generation_reasoning": generation["reasoning"],
             "llm_model": generation["model"],
             "token_usage": generation["usage"],
         },
@@ -82,5 +88,6 @@ async def run_query(payload: QueryRequest, request: Request):
         "requestId": request_id,
         "answer": generation["answer"],
         "sources": matches,
+        "sourceDocuments": unique_source_documents(matches),
         "latency": latency,
     }
