@@ -290,6 +290,7 @@ code {
   display: block;
   width: 100%;
   text-align: left;
+  text-decoration: none;
   background: none;
   border: none;
   border-left: 2px solid transparent;
@@ -297,6 +298,7 @@ code {
   cursor: pointer;
   color: var(--ink-soft);
   border-radius: 0 4px 4px 0;
+  box-sizing: border-box;
 }
 .nav-item:hover { background: var(--accent-soft); color: var(--ink); }
 .nav-item.is-active {

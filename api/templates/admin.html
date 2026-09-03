@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Knowledge Base — Pharma RAG{% endblock %}
+{% block content %}
+<section class="panel">
+  <header class="panel-header">
+    <h2>Knowledge Base</h2>
+    <p>Add documents or publish a new version. Updating a document immediately retires its old chunks from retrieval.</p>
+  </header>
+
+  <form id="upload-form" class="upload-form">
+    <label>
+      Document title
+      <input id="upload-title" type="text" required placeholder="e.g. SOP-4471: Cold Chain Handling" />
+    </label>
+
+    <label>
+      Content (.txt file, or paste text below)
+      <input id="upload-file" type="file" accept=".txt,.md" />
+    </label>
+
+    <label>
+      <textarea id="upload-text" rows="8" placeholder="Paste document text here if not uploading a file..."></textarea>
+    </label>
+
+    <fieldset id="upload-departments" class="dept-fieldset">
+      <legend>Visible to departments</legend>
+      <div id="dept-checkboxes" class="dept-checkboxes"></div>
+    </fieldset>
+
+    <input type="hidden" id="upload-existing-doc-id" value="" />
+    <button type="submit" class="btn btn-primary" id="upload-submit">Publish document</button>
+    <p id="upload-status" class="auth-status" hidden></p>
+  </form>
+
+  <h3 class="admin-subhead">Existing documents</h3>
+  <ul id="admin-doc-list" class="doc-list"></ul>
+</section>
+{% endblock %}
+{% block page_script %}
+<script src="{{ url_for('static', path='js/admin.js') }}"></script>
+{% endblock %}

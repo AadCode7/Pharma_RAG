@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{% block title %}Pharma RAG{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
+</head>
+<!-- body starts hidden; guard.js unhides it only once a valid session is
+     confirmed, so protected content never flashes before the redirect. -->
+<body hidden>
+
+<div class="app-shell">
+  <nav class="sidebar">
+    <p class="sidebar-mark">Pharma RAG</p>
+    <ul class="sidebar-nav">
+      <li><a class="nav-item {{ 'is-active' if active_page == 'query' }}" href="/">Query</a></li>
+      <li><a class="nav-item {{ 'is-active' if active_page == 'trace' }}" href="/trace">Pipeline Trace</a></li>
+      <li><a class="nav-item {{ 'is-active' if active_page == 'sources' }}" href="/sources">Sources</a></li>
+      <li><a class="nav-item {{ 'is-active' if active_page == 'eval' }}" href="/eval">Evaluation</a></li>
+      <li><a class="nav-item {{ 'is-active' if active_page == 'admin' }}" href="/admin" id="nav-admin" hidden>Knowledge Base</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <p id="user-name" class="sidebar-user"></p>
+      <p id="user-role" class="sidebar-role"></p>
+      <button id="btn-sign-out" class="btn-text">Sign out</button>
+    </div>
+  </nav>
+
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/config.js"></script>
+<script src="{{ url_for('static', path='js/supabase-client.js') }}"></script>
+<script src="{{ url_for('static', path='js/api-client.js') }}"></script>
+<script src="{{ url_for('static', path='js/guard.js') }}"></script>
+{% block page_script %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Pipeline Trace — Pharma RAG{% endblock %}
+{% block content %}
+<section class="panel">
+  <header class="panel-header">
+    <h2>Pipeline Trace</h2>
+    <p>Every stage of the last 10 queries you've run: chunking, retrieval, and generation.</p>
+  </header>
+  <div class="trace-layout">
+    <ul id="trace-list" class="trace-list"></ul>
+    <div id="trace-detail" class="trace-detail">
+      <p class="empty-state">Select a query on the left to inspect its pipeline.</p>
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block page_script %}
+<script src="{{ url_for('static', path='js/trace.js') }}"></script>
+{% endblock %}

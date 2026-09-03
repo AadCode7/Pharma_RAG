@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Query — Pharma RAG{% endblock %}
+{% block content %}
+<section class="panel">
+  <header class="panel-header">
+    <h2>Query</h2>
+    <p>Ask a question. The answer is generated only from documents your department can see.</p>
+  </header>
+
+  <form id="query-form" class="query-form">
+    <textarea id="query-input" placeholder="e.g. What's the current storage temperature requirement for Compound X?" rows="3" required></textarea>
+    <button type="submit" class="btn btn-primary" id="query-submit">Ask</button>
+  </form>
+
+  <div id="query-result" class="query-result" hidden>
+    <div class="answer-block">
+      <p class="label">Answer</p>
+      <p id="answer-text" class="answer-text"></p>
+    </div>
+    <div class="sources-inline">
+      <p class="label">Sources used</p>
+      <ul id="answer-sources" class="source-chip-list"></ul>
+    </div>
+    <p class="trace-link">
+      <a id="view-trace-link" class="btn-text" href="/trace">View full pipeline trace for this answer →</a>
+    </p>
+  </div>
+
+  <div id="query-empty" class="empty-state">
+    <p>No question asked yet. Try one above — the retrieved chunks, similarity scores, and full generation prompt will all be visible in Pipeline Trace once you do.</p>
+  </div>
+</section>
+{% endblock %}
+{% block page_script %}
+<script src="{{ url_for('static', path='js/query.js') }}"></script>
+{% endblock %}

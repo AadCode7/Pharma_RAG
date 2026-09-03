@@ -2,7 +2,7 @@
 
 > Review this file at the start of every session before making changes, so decisions aren't re-litigated and nothing gets lost between sessions.
 
-## Current Status: V1 rewritten in Python/FastAPI. Auth screen redone (email/password + Google, Apple-ID-styled). Not yet deployed or tested against live services.
+## Current Status: V1 rewritten in Python/FastAPI, now a proper multi-page app (real routes, not hidden divs) with email/password + Google auth. Not yet deployed or tested against live services.
 
 ---
 
@@ -44,6 +44,31 @@ User feedback: "Continue with Apple" was a misreading — they meant the sign-in
 - Restyled the auth screen specifically to resemble Apple ID's sign-in page (system font stack, black pill-shaped buttons, soft white card on light-gray page, blue focus ring) — deliberately a different visual language from the rest of the app (`architecture.md`'s clinical/lab-notebook system), the way a login screen is often visually distinct from the product behind it.
 - Verified structurally (no live Supabase to test against): every element ID referenced in `app.js` exists in `index.html`, and `app.js` parses as valid JS.
 
+### Multi-page restructure (this session)
+User feedback: the whole app being one HTML file with JS-toggled `<div>` sections wasn't acceptable — wanted real separate pages with routing, plus a working sign-out that actually clears the session.
+
+**Templates** — replaced the single `index.html` with:
+- `api/templates/base.html` — shared layout (sidebar nav, script includes). Every authenticated page extends this via Jinja2 `{% extends %}` rather than duplicating the nav markup five times.
+- `api/templates/login.html` — standalone (no sidebar); the only page without the auth guard.
+- `api/templates/query.html`, `trace.html`, `sources.html`, `eval.html`, `admin.html` — one real route each (`/`, `/trace`, `/sources`, `/eval`, `/admin`), each just the page's own content inside `{% block content %}`.
+
+**JS** — replaced the single `app.js` with one shared script per concern, plus one script per page:
+- `api-client.js` — `apiFetch()`, `escapeHtml()`, `truncate()`, and `renderDocList()` (shared by Sources and Admin, since both render the same document/version list).
+- `supabase-client.js` — creates the one `sb` client every other script uses.
+- `guard.js` — the actual session enforcement. Redirects to `/login` if there's no session; populates the sidebar (name/role/admin-link visibility); dispatches an `auth-ready` event once that's done so page scripts don't race it; keeps listening for the session disappearing mid-visit (expiry/revocation) and redirects then too; wires sign-out to call `sb.auth.signOut()` (revokes the refresh token server-side, not just a local forget) before redirecting to `/login`.
+- `login.js`, `query.js`, `trace.js`, `sources.js`, `admin.js` — one page's worth of logic each. `admin.js` additionally redirects non-managers away from `/admin` client-side (the API already enforces this via `require_manager`, but there's no reason to render the page for someone who can't use it). `trace.js` now reads `?requestId=` from the URL for the "view full trace" deep link from the Query page, since that's a real page navigation now, not a same-page section switch.
+
+**Backend** — `api/main.py` now has one route per page (`/login`, `/`, `/trace`, `/sources`, `/eval`, `/admin`) instead of a single catch-all, each rendering its own template with `active_page` passed in for nav highlighting.
+
+**Removed**: `api/templates/index.html`, `api/static/app.js` (superseded).
+
+**Bug caught and fixed during this pass**: `schemas/ingest.py`'s `IngestRequest` expected snake_case (`department_ids`, `existing_document_id`), but the frontend has always sent camelCase (`departmentIds`, `existingDocumentId`) — this dates back to the original Python rewrite, not something this session introduced, but it was silently broken (department assignment would have always come through empty). Fixed with pydantic field aliases (`populate_by_name=True` + `Field(alias=...)`), verified with an actual parse test.
+
+**Verification actually run this session** (not just eyeballed):
+- Every one of the 6 pages (`/login`, `/`, `/trace`, `/sources`, `/eval`, `/admin`) rendered through FastAPI's real `TestClient` + Jinja2 — confirms `{% extends %}`, `url_for()`, and the nav's inline `is-active` conditionals all work, not just that the `.html` files look right.
+- Cross-checked every `getElementById()` call in each page's actual loaded JS (shared + page-specific) against that page's *rendered* HTML output — not the template source, the actual rendered result. Zero missing IDs across all 5 authenticated pages + login.
+- Re-parsed the fixed `IngestRequest` schema against a real camelCase JSON payload to confirm the alias fix works.
+
 ---
 
 ## Known Risks / Things To Verify (not yet tested)
@@ -56,6 +81,7 @@ Same sandbox network limitation as before — no access to huggingface.co, groq.
 4. **FastAPI on Vercel's Python runtime, with static files** (`vercel.json`) — this combination (ASGI app + `StaticFiles` mount + Jinja2 templates, all bundled via `includeFiles`) is less common and less battle-tested on Vercel than the plain Node.js serverless-functions approach used in the first version. If static assets 404 after deploying, see the fallback note in README §4.
 5. Everything already flagged in the Node.js version that's unrelated to language (RLS correctness, Groq model name currency) still applies — re-verify since it's a from-scratch rewrite, not a port with guarantees. (Apple OAuth setup is no longer relevant — that option was removed per the auth redesign above.)
 6. **Whether your Supabase project requires email confirmation on sign-up** — determines which of the two code paths in the sign-up handler actually fires. Check Authentication → Settings → "Confirm email" in the Supabase dashboard.
+7. **Auth is enforced client-side, by design, not by the server refusing the page** — `/admin`'s HTML shell is fetchable by anyone (it's just markup + a script tag), but it contains no data; `guard.js` redirects before any content is shown, and the actual document/trace data only comes back from `/api/*` routes that verify the session server-side. This is a normal pattern for a Supabase-Auth-in-localStorage app without server-side sessions — flagging it so it's a documented decision, not a discovered gap.
 
 ---
 

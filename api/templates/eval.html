@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Evaluation — Pharma RAG{% endblock %}
+{% block content %}
+<section class="panel">
+  <header class="panel-header">
+    <h2>Evaluation</h2>
+    <p>Retrieval and generation quality, measured against a labeled query set.</p>
+  </header>
+  <div class="empty-state eval-empty">
+    <p class="eval-empty-title">No evaluation runs yet</p>
+    <p>This dashboard renders Recall@k, Precision@k, MRR, and groundedness scores once a golden query set (questions with known-correct source chunks) is loaded into <code>eval_queries</code>. That's the next V1 milestone — see <code>progress.md</code>.</p>
+    <p>Once it exists, run the eval harness to populate <code>eval_runs</code> / <code>eval_results</code>, and this table fills in automatically — including a side-by-side comparison once V2 strategies are added.</p>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,99 @@
+document.addEventListener('auth-ready', (e) => {
+  // Every route in api/main.py is reachable by URL regardless of role —
+  // RLS/require_manager() on the API stops an employee from actually
+  // reading or writing manager-only data, but the /admin page itself has
+  // no reason to render for them at all. Bounce them to the query page.
+  if (e.detail.role !== 'manager') {
+    window.location.replace('/');
+    return;
+  }
+
+  loadDepartmentCheckboxes();
+  loadAdminDocs();
+  document.getElementById('upload-form').addEventListener('submit', handleUploadSubmit);
+});
+
+async function loadDepartmentCheckboxes() {
+  const container = document.getElementById('dept-checkboxes');
+  try {
+    const { departments } = await apiFetch('/api/departments');
+    container.innerHTML = (departments || [])
+      .map((d) => `<label><input type="checkbox" value="${d.id}" name="dept" /> ${escapeHtml(d.name)}</label>`)
+      .join('');
+  } catch (err) {
+    container.innerHTML = `<p style="color: var(--error);">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+async function loadAdminDocs() {
+  const list = document.getElementById('admin-doc-list');
+  list.innerHTML = '<li>Loading…</li>';
+  try {
+    const { documents } = await apiFetch('/api/documents');
+    renderDocList(list, documents); // defined in api-client.js — shared with sources.js
+
+    // Manager-only extra action: publish a new version of an existing document.
+    Array.from(list.children).forEach((li, i) => {
+      const doc = documents[i];
+      if (!doc) return;
+      const btn = document.createElement('button');
+      btn.className = 'btn-text';
+      btn.style.marginTop = '0.5rem';
+      btn.textContent = 'Publish new version of this document';
+      btn.addEventListener('click', () => {
+        document.getElementById('upload-existing-doc-id').value = doc.id;
+        document.getElementById('upload-title').value = doc.title;
+        document.getElementById('upload-title').scrollIntoView({ behavior: 'smooth' });
+      });
+      li.appendChild(btn);
+    });
+  } catch (err) {
+    list.innerHTML = `<li style="color: var(--error);">${escapeHtml(err.message)}</li>`;
+  }
+}
+
+async function handleUploadSubmit(e) {
+  e.preventDefault();
+  const submitBtn = document.getElementById('upload-submit');
+  const statusEl = document.getElementById('upload-status');
+  const title = document.getElementById('upload-title').value.trim();
+  const fileInput = document.getElementById('upload-file');
+  const textArea = document.getElementById('upload-text');
+  const existingDocumentId = document.getElementById('upload-existing-doc-id').value || null;
+  const departmentIds = Array.from(document.querySelectorAll('input[name="dept"]:checked')).map((i) => i.value);
+
+  let text = textArea.value.trim();
+  if (fileInput.files[0]) {
+    text = await fileInput.files[0].text();
+  }
+  if (!text) {
+    statusEl.hidden = false;
+    statusEl.className = 'auth-status is-error';
+    statusEl.textContent = 'Provide document text via file upload or the text box.';
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Publishing…';
+  statusEl.hidden = true;
+
+  try {
+    const result = await apiFetch('/api/ingest', {
+      method: 'POST',
+      body: JSON.stringify({ title, text, departmentIds, existingDocumentId }),
+    });
+    statusEl.hidden = false;
+    statusEl.className = 'auth-status';
+    statusEl.textContent = `Published v${result.versionNumber} — ${result.chunksCreated} chunks created and embedded.`;
+    document.getElementById('upload-form').reset();
+    document.getElementById('upload-existing-doc-id').value = '';
+    loadAdminDocs();
+  } catch (err) {
+    statusEl.hidden = false;
+    statusEl.className = 'auth-status is-error';
+    statusEl.textContent = err.message;
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Publish document';
+  }
+}

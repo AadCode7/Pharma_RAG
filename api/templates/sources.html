@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Sources — Pharma RAG{% endblock %}
+{% block content %}
+<section class="panel">
+  <header class="panel-header">
+    <h2>Sources</h2>
+    <p>Documents visible to you, with version history. Superseded versions are kept for audit but never used in retrieval.</p>
+  </header>
+  <ul id="sources-list" class="doc-list"></ul>
+</section>
+{% endblock %}
+{% block page_script %}
+<script src="{{ url_for('static', path='js/sources.js') }}"></script>
+{% endblock %}
