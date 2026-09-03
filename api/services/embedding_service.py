@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 
 from config.settings import settings
@@ -10,16 +12,30 @@ from exception.exceptions import UpstreamServiceError
 # README.md. Documented fallback: run the model in-process with
 # sentence-transformers (still free, no API dependency, larger deploy size).
 
-HF_API_URL = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{settings.embedding_model}"
+HF_API_URL = f"https://router.huggingface.co/hf-inference/models/{settings.embedding_model}"
+MAX_ATTEMPTS = 3
 
 
 async def embed_texts(texts: list[str]) -> list[list[float]]:
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            HF_API_URL,
-            headers={"Authorization": f"Bearer {settings.hf_api_token}"},
-            json={"inputs": texts, "options": {"wait_for_model": True}},
-        )
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for attempt in range(MAX_ATTEMPTS):
+                try:
+                    response = await client.post(
+                        HF_API_URL,
+                        headers={"Authorization": f"Bearer {settings.hf_api_token}"},
+                        json={"inputs": texts, "options": {"wait_for_model": True}},
+                    )
+                    break
+                except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+                    if attempt == MAX_ATTEMPTS - 1:
+                        raise UpstreamServiceError(
+                            "Hugging Face embedding service could not be reached. "
+                            "Please try publishing again."
+                        ) from exc
+                    await asyncio.sleep(2**attempt)
+    except httpx.RequestError as exc:
+        raise UpstreamServiceError("Hugging Face embedding request failed.") from exc
 
     if response.status_code != 200:
         raise UpstreamServiceError(f"HF embedding request failed ({response.status_code}): {response.text}")
