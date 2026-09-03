@@ -20,6 +20,12 @@ async def ingest_document(
     enforced: the previous version's chunks are deactivated BEFORE the new
     version's chunks are created, so there's never a window where both old
     and new content are simultaneously retrievable."""
+    # PostgreSQL text columns reject NUL characters, which can appear when a
+    # binary file is decoded incorrectly by a client.
+    text = text.replace("\x00", "")
+    if not text.strip():
+        raise BadRequestError("Document text is empty after removing unsupported characters")
+
     service = get_service_client()
     content_hash = sha256_hash(text)
 

@@ -64,7 +64,12 @@ async function handleUploadSubmit(e) {
 
   let text = textArea.value.trim();
   if (fileInput.files[0]) {
-    text = await fileInput.files[0].text();
+    const file = fileInput.files[0];
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      text = await extractPdfText(file);
+    } else {
+      text = await file.text();
+    }
   }
   if (!text) {
     statusEl.hidden = false;
@@ -96,4 +101,27 @@ async function handleUploadSubmit(e) {
     submitBtn.disabled = false;
     submitBtn.textContent = 'Publish document';
   }
+}
+
+async function extractPdfText(file) {
+  if (!window.pdfjsLib) {
+    throw new Error('PDF support is unavailable. Refresh the page and try again.');
+  }
+
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdf = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    pages.push(content.items.map((item) => item.str).join(' '));
+  }
+
+  const text = pages.join('\n\n').trim();
+  if (!text) {
+    throw new Error('This PDF contains no selectable text. Upload a text-based PDF or paste its text below.');
+  }
+  return text;
 }
