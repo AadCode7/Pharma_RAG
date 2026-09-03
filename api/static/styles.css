@@ -27,6 +27,17 @@
 
 * { box-sizing: border-box; }
 
+/* An author stylesheet rule that sets `display` on a class (e.g.
+   `.field-group { display: flex }`, `.nav-item { display: block }`)
+   overrides the browser's own default `[hidden] { display: none }` rule,
+   because author-origin CSS always wins over user-agent-origin CSS
+   regardless of selector order. Every element in this app that's toggled
+   via the `hidden` attribute also has a class that sets `display`, so
+   without this rule `hidden` silently does nothing. This was the actual
+   cause of the full-name field showing on the sign-in page, and would
+   also have let the admin nav link stay visible for non-managers. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;

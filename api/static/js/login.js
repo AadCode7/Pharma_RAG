@@ -83,11 +83,28 @@ authForm.addEventListener('submit', async (e) => {
       return;
     }
   } catch (err) {
+    // Full error object to the console — err.message alone (what was shown
+    // before) is often just "Failed to fetch", which tells you nothing.
+    // Nothing about this call goes through our backend, so this console
+    // log is the only place the real cause shows up — check it here, not
+    // the server terminal.
+    console.error(`[Pharma RAG] ${authMode} failed:`, err);
     authStatus.hidden = false;
     authStatus.className = 'auth-status is-error';
-    authStatus.textContent = err.message;
+    authStatus.textContent = describeAuthError(err);
   } finally {
     authSubmit.disabled = false;
     authSubmit.textContent = authMode === 'signup' ? 'Create Account' : 'Sign In';
   }
 });
+
+function describeAuthError(err) {
+  // The Fetch API throws a plain TypeError with exactly this message when
+  // the request never reaches a server at all — DNS failure, connection
+  // refused, CORS block, offline. That's a config/network problem, not a
+  // rejected sign-in, so it gets a different, more actionable message.
+  if (err instanceof TypeError && /fetch/i.test(err.message)) {
+    return "Couldn't reach the authentication server. Check your internet connection and open the browser console for details — SUPABASE_URL in your .env is the most common cause.";
+  }
+  return err.message || 'Something went wrong. Check the browser console for details.';
+}
