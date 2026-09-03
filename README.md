@@ -40,8 +40,9 @@ utils/                             # pure helpers (chunking, hashing)
    Ops", "Manufacturing") — the admin upload form reads from this table.
 5. Promote your own user to manager once you've signed in once:
    ```sql
-   update profiles set role = 'manager' where id = '<your-auth-uid>';
+   update profiles set role = 'manager' where id = 'f5f0156c-6283-424c-9e4d-d23edbb8b307';
    ```
+
 
 ## 2. Local setup
 

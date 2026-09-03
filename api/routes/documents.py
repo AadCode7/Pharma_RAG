@@ -18,7 +18,8 @@ async def list_documents(request: Request):
         user_client.table("documents")
         .select(
             "id, title, status, created_at, current_version_id, "
-            "document_versions(id, version_number, created_at, superseded_at)"
+            "document_versions!document_versions_document_id_fkey("
+            "id, version_number, created_at, superseded_at)"
         )
         .order("created_at", desc=True)
         .execute()
