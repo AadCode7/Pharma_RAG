@@ -2,8 +2,10 @@ from fastapi import APIRouter, Request
 
 from api.services.ingestion_service import delete_document, repair_document_embeddings
 from api.services.rbac_service import require_manager, require_user
+from logger.logger import get_logger
 
 router = APIRouter(tags=["documents"])
+logger = get_logger(__name__)
 
 # Deliberately uses the caller's own JWT-scoped client (not the service
 # client) so Postgres RLS does the department filtering for us — managers
@@ -29,15 +31,42 @@ async def list_documents(request: Request):
         return {"documents": []}
 
     doc_ids = [doc["id"] for doc in documents]
-    versions_result = (
-        user_client.table("document_versions")
-        .select("id, document_id, version_number, created_at, superseded_at")
-        .in_("document_id", doc_ids)
-        .execute()
-    )
+    try:
+        versions_result = (
+            user_client.table("document_versions")
+            .select(
+                "id, document_id, version_number, created_at, superseded_at, "
+                "chunking_strategy, embedding_strategy, embedding_model"
+            )
+            .in_("document_id", doc_ids)
+            .execute()
+        )
+        version_rows = versions_result.data or []
+    except Exception as exc:
+        # Keep the shared document rail usable for databases that have not
+        # received migration 0003 yet. The strategy columns are additive, so
+        # existing documents can still be listed with safe baseline values.
+        logger.exception("document_versions strategy columns are unavailable: %s", exc)
+        version_rows = []
+
+        legacy_result = (
+            user_client.table("document_versions")
+            .select("id, document_id, version_number, created_at, superseded_at")
+            .in_("document_id", doc_ids)
+            .execute()
+        )
+        version_rows = [
+            {
+                **version,
+                "chunking_strategy": "fixed_size_v1",
+                "embedding_strategy": "bge_small",
+                "embedding_model": "BAAI/bge-small-en-v1.5",
+            }
+            for version in (legacy_result.data or [])
+        ]
 
     versions_by_doc: dict[str, list] = {}
-    for version in versions_result.data or []:
+    for version in version_rows:
         versions_by_doc.setdefault(version["document_id"], []).append(version)
 
     for doc in documents:

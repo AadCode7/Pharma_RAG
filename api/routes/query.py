@@ -9,6 +9,8 @@ from api.services.rbac_service import require_user
 from api.services.retrieval_service import diversify_chunks, match_chunks
 from api.services.tracing_service import log_trace
 from config.settings import settings
+from config.strategies import get_strategy
+from exception.exceptions import BadRequestError
 from schemas.query import QueryRequest
 from utils.llm_response import unique_source_documents
 
@@ -22,6 +24,27 @@ async def run_query(payload: QueryRequest, request: Request):
     latency: dict = {}
 
     user_id, _user_client, _token = require_user(request)
+
+    retrieval_config = get_strategy("retrieval", payload.retrieval_strategy)
+    reranking_config = get_strategy("reranking", payload.reranking_strategy)
+    if not retrieval_config:
+        raise BadRequestError(f"Unknown retrieval strategy: {payload.retrieval_strategy}")
+    if not reranking_config:
+        raise BadRequestError(f"Unknown reranking strategy: {payload.reranking_strategy}")
+
+    # Configuration is deliberately wired before implementation. At this
+    # milestone only standard dense retrieval + no reranking execute. Future
+    # strategies get their own implementation without changing QueryRequest.
+    if not retrieval_config["implemented"]:
+        raise BadRequestError(
+            f"Retrieval strategy '{retrieval_config['label']}' is not implemented yet. "
+            "The selector is ready for its implementation in the next milestone."
+        )
+    if not reranking_config["implemented"]:
+        raise BadRequestError(
+            f"Reranking strategy '{reranking_config['label']}' is not implemented yet. "
+            "The selector is ready for its implementation in the next milestone."
+        )
 
     # 1. Embed the query
     t_embed = time.perf_counter()
@@ -46,6 +69,8 @@ async def run_query(payload: QueryRequest, request: Request):
             payload.query,
             {
                 "chunking_strategy": "fixed_size_v1",
+                "retrieval_strategy": retrieval_config["id"],
+                "reranking_strategy": reranking_config["id"],
                 "retrieved_chunks": [],
                 "note": "no matches found or visible to this user",
             },
@@ -71,6 +96,8 @@ async def run_query(payload: QueryRequest, request: Request):
         payload.query,
         {
             "chunking_strategy": "fixed_size_v1",
+            "retrieval_strategy": retrieval_config["id"],
+            "reranking_strategy": reranking_config["id"],
             "embedding_model": settings.embedding_model,
             "retrieved_chunks": matches,
             "system_prompt": generation["system_prompt"],

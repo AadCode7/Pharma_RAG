@@ -4,11 +4,28 @@
 <section class="panel">
   <header class="panel-header">
     <h2>Query</h2>
-    <p>Ask a question. Answers are generated only from retrieved document context your department can see.</p>
+    <p>Ask a question and choose how the RAG pipeline should retrieve and rank evidence.</p>
   </header>
 
   <form id="query-form" class="query-form">
     <textarea id="query-input" placeholder="e.g. What's the current storage temperature requirement for Compound X?" rows="3" required></textarea>
+
+    <div class="strategy-grid strategy-grid-query">
+      <label class="strategy-field">
+        <span class="strategy-label">Retrieval strategy</span>
+        <select id="retrieval-strategy" name="retrievalStrategy"></select>
+        <span class="strategy-help">Controls how candidate chunks are found. HyDE is included here because it changes the retrieval query before search.</span>
+      </label>
+
+      <label class="strategy-field">
+        <span class="strategy-label">Reranking strategy</span>
+        <select id="reranking-strategy" name="rerankingStrategy"></select>
+        <span class="strategy-help">Controls whether retrieved candidates are re-scored after initial retrieval.</span>
+      </label>
+    </div>
+
+    <div id="strategy-status" class="strategy-status" hidden></div>
+
     <button type="submit" class="btn btn-primary" id="query-submit">Ask</button>
   </form>
 
@@ -27,7 +44,7 @@
   </div>
 
   <div id="query-empty" class="empty-state">
-    <p>No question asked yet. Try one above — the grounded answer and source documents will appear here. Prompts, retrieved chunks, and model reasoning are available in Pipeline Trace.</p>
+    <p>No question asked yet. Choose the retrieval and reranking configuration above, then ask a question. The pipeline trace records those selections with the query.</p>
   </div>
 </section>
 {% endblock %}
