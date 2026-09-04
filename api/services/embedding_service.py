@@ -12,17 +12,19 @@ from exception.exceptions import UpstreamServiceError
 # README.md. Documented fallback: run the model in-process with
 # sentence-transformers (still free, no API dependency, larger deploy size).
 
-HF_API_URL = f"https://router.huggingface.co/hf-inference/models/{settings.embedding_model}"
 MAX_ATTEMPTS = 3
 
 
-async def embed_texts(texts: list[str]) -> list[list[float]]:
+async def embed_texts(texts: list[str], model_name: str | None = None) -> list[list[float]]:
+    selected_model = model_name or settings.embedding_model
+    api_url = f"https://router.huggingface.co/hf-inference/models/{selected_model}"
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             for attempt in range(MAX_ATTEMPTS):
                 try:
                     response = await client.post(
-                        HF_API_URL,
+                        api_url,
                         headers={"Authorization": f"Bearer {settings.hf_api_token}"},
                         json={"inputs": texts, "options": {"wait_for_model": True}},
                     )

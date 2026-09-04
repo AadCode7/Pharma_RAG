@@ -72,6 +72,8 @@ function renderTraceDetail(trace) {
       <span class="stage-num">Stage 2</span>
       <h4>Retrieval</h4>
       <p class="stage-sub">
+        Strategy <code>${escapeHtml(stage.retrieval_strategy || 'standard')}</code> ·
+        reranking <code>${escapeHtml(stage.reranking_strategy || 'none')}</code> ·
         ${chunks.length} chunk(s) retrieved · embedding model
         <code>${escapeHtml(stage.embedding_model || 'unknown')}</code>
       </p>

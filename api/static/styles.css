@@ -745,3 +745,228 @@ pre.prompt-block-muted {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* ===========================================================
+   Shared document rail
+   The rail is part of base.html, so it remains in exactly the same place
+   while the user moves between Query, Trace, Sources, Evaluation, and
+   Knowledge Base.
+=========================================================== */
+body {
+  padding-right: 320px;
+}
+
+.documents-rail {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  z-index: 20;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  padding: 1.5rem 1.1rem;
+  overflow-y: auto;
+}
+
+.documents-rail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.documents-rail-kicker {
+  margin: 0 0 0.15rem;
+  font-family: var(--font-data);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.documents-rail h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+.documents-rail-subtitle {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 0.35rem 0 1rem;
+}
+.documents-refresh {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.documents-refresh:hover { color: var(--ink); border-color: var(--accent); }
+
+.documents-rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.documents-rail-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.documents-rail-empty.is-error { color: var(--error); }
+
+.documents-rail-card {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.8rem;
+  background: var(--bg);
+}
+.documents-rail-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.documents-rail-card h3 {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.documents-rail-status {
+  flex: 0 0 auto;
+  font-family: var(--font-data);
+  font-size: 0.58rem;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.documents-rail-status.is-active { color: var(--accent); }
+.documents-rail-version,
+.documents-rail-strategy {
+  margin: 0.3rem 0 0;
+  font-family: var(--font-data);
+  font-size: 0.64rem;
+  color: var(--muted);
+}
+.documents-rail-strategy { color: var(--ink-soft); }
+
+.documents-rail-history { margin-top: 0.65rem; border-top: 1px solid var(--line); padding-top: 0.55rem; }
+.documents-rail-history summary {
+  cursor: pointer;
+  font-size: 0.7rem;
+  color: var(--accent);
+}
+.documents-rail-history-list { margin-top: 0.5rem; }
+.documents-rail-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-data);
+  font-size: 0.64rem;
+}
+.documents-rail-history-badge { color: var(--muted); }
+.documents-rail-history-badge.is-current { color: var(--accent); }
+.documents-rail-history-meta {
+  margin: 0.18rem 0 0.55rem;
+  font-family: var(--font-data);
+  font-size: 0.57rem;
+  color: var(--muted);
+}
+
+.documents-rail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.7rem;
+  margin-top: 0.7rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+}
+.documents-rail-actions .btn-text { font-size: 0.68rem; }
+
+/* ===========================================================
+   Strategy selectors
+=========================================================== */
+.strategy-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+.strategy-grid-query { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0.35rem; }
+.strategy-grid-upload { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.strategy-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+}
+.strategy-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.strategy-field select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  padding: 0.65em 0.75em;
+}
+.strategy-help {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  font-weight: 400;
+}
+.strategy-status {
+  border-left: 2px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  padding: 0.65rem 0.8rem;
+}
+.strategy-status.is-warning {
+  border-left-color: var(--amber);
+  background: var(--amber-soft);
+}
+.strategy-status.is-error {
+  border-left-color: var(--error);
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.admin-selection-note {
+  margin-top: 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed var(--line);
+  background: var(--bg);
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  font-family: var(--font-data);
+  font-size: 0.7rem;
+}
+.admin-selection-note strong { color: var(--ink-soft); }
+
+@media (max-width: 1050px) {
+  body { padding-right: 0; }
+  .documents-rail {
+    position: static;
+    width: auto;
+    border-left: none;
+    border-top: 1px solid var(--line);
+    max-height: 420px;
+  }
+  .app-shell { display: flex; flex-direction: column; }
+  .sidebar { order: 0; }
+  .content { order: 1; max-width: none; }
+  .documents-rail { order: 2; }
+}
+
+@media (max-width: 720px) {
+  .strategy-grid-query,
+  .strategy-grid-upload { grid-template-columns: 1fr; }
+}

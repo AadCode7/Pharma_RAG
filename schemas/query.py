@@ -1,9 +1,13 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class QueryRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     query: str = Field(..., min_length=1)
     k: int = Field(default=5, ge=1, le=20)
+    retrieval_strategy: str = Field(default="standard", alias="retrievalStrategy")
+    reranking_strategy: str = Field(default="none", alias="rerankingStrategy")
 
 
 class SourceChunk(BaseModel):
