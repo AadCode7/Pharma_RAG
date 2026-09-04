@@ -1,12 +1,69 @@
-document.addEventListener('auth-ready', () => {
+document.addEventListener('auth-ready', async () => {
+  await loadQueryStrategies();
   document.getElementById('query-form').addEventListener('submit', handleSubmit);
 });
+
+async function loadQueryStrategies() {
+  const retrievalSelect = document.getElementById('retrieval-strategy');
+  const rerankingSelect = document.getElementById('reranking-strategy');
+  const status = document.getElementById('strategy-status');
+
+  try {
+    const { strategies } = await apiFetch('/api/strategies');
+    populateStrategySelect(retrievalSelect, strategies.retrieval || []);
+    populateStrategySelect(rerankingSelect, strategies.reranking || []);
+    updateStrategyStatus();
+
+    retrievalSelect.addEventListener('change', updateStrategyStatus);
+    rerankingSelect.addEventListener('change', updateStrategyStatus);
+  } catch (err) {
+    retrievalSelect.innerHTML = '<option value="standard">Standard Dense Retrieval</option>';
+    rerankingSelect.innerHTML = '<option value="none">No Reranking</option>';
+    status.hidden = false;
+    status.className = 'strategy-status is-error';
+    status.textContent = `Could not load strategy configuration: ${err.message}`;
+  }
+}
+
+function populateStrategySelect(select, strategies) {
+  select.innerHTML = '';
+  strategies.forEach((strategy) => {
+    const option = document.createElement('option');
+    option.value = strategy.id;
+    option.textContent = strategy.implemented ? strategy.label : `${strategy.label} — coming next`;
+    option.dataset.implemented = strategy.implemented ? 'true' : 'false';
+    select.appendChild(option);
+  });
+
+  const defaultStrategy = strategies.find((strategy) => strategy.default) || strategies[0];
+  if (defaultStrategy) select.value = defaultStrategy.id;
+}
+
+function updateStrategyStatus() {
+  const status = document.getElementById('strategy-status');
+  const retrievalOption = document.getElementById('retrieval-strategy').selectedOptions[0];
+  const rerankingOption = document.getElementById('reranking-strategy').selectedOptions[0];
+  const unavailable = [retrievalOption, rerankingOption].filter((option) => option?.dataset.implemented !== 'true');
+
+  if (unavailable.length === 0) {
+    status.hidden = false;
+    status.className = 'strategy-status';
+    status.textContent = 'Current execution: Standard dense retrieval with no reranking.';
+    return;
+  }
+
+  status.hidden = false;
+  status.className = 'strategy-status is-warning';
+  status.textContent = 'This strategy is available in the configuration UI, but its algorithm is not implemented yet. Implementations will be added one by one.';
+}
 
 async function handleSubmit(e) {
   e.preventDefault();
   const input = document.getElementById('query-input');
   const submitBtn = document.getElementById('query-submit');
   const query = input.value.trim();
+  const retrievalStrategy = document.getElementById('retrieval-strategy').value;
+  const rerankingStrategy = document.getElementById('reranking-strategy').value;
   if (!query) return;
 
   submitBtn.disabled = true;
@@ -14,7 +71,15 @@ async function handleSubmit(e) {
   document.getElementById('query-empty').hidden = true;
 
   try {
-    const result = await apiFetch('/api/query', { method: 'POST', body: JSON.stringify({ query, k: 5 }) });
+    const result = await apiFetch('/api/query', {
+      method: 'POST',
+      body: JSON.stringify({
+        query,
+        k: 5,
+        retrievalStrategy,
+        rerankingStrategy,
+      }),
+    });
 
     document.getElementById('answer-text').textContent = result.answer || 'No answer could be generated from the retrieved context.';
 

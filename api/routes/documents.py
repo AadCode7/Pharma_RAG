@@ -31,7 +31,7 @@ async def list_documents(request: Request):
     doc_ids = [doc["id"] for doc in documents]
     versions_result = (
         user_client.table("document_versions")
-        .select("id, document_id, version_number, created_at, superseded_at")
+        .select("id, document_id, version_number, created_at, superseded_at, chunking_strategy, embedding_strategy, embedding_model")
         .in_("document_id", doc_ids)
         .execute()
     )

@@ -32,6 +32,20 @@
   <main class="content">
     {% block content %}{% endblock %}
   </main>
+
+  <aside id="documents-rail" class="documents-rail" aria-label="Available documents">
+    <div class="documents-rail-header">
+      <div>
+        <p class="documents-rail-kicker">Knowledge base</p>
+        <h2>Available documents</h2>
+      </div>
+      <button id="documents-refresh" class="documents-refresh" type="button" title="Refresh documents" aria-label="Refresh documents">↻</button>
+    </div>
+    <p class="documents-rail-subtitle">Documents currently visible to your account.</p>
+    <div id="documents-rail-list" class="documents-rail-list">
+      <p class="documents-rail-empty">Loading documents…</p>
+    </div>
+  </aside>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -39,6 +53,7 @@
 <script src="{{ url_for('static', path='js/supabase-client.js') }}"></script>
 <script src="{{ url_for('static', path='js/api-client.js') }}"></script>
 <script src="{{ url_for('static', path='js/guard.js') }}"></script>
+<script src="{{ url_for('static', path='js/documents-sidebar.js') }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 {% block page_script %}{% endblock %}
 </body>

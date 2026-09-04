@@ -2,6 +2,7 @@ import uuid
 
 from api.services.embedding_service import embed_texts
 from config.settings import settings
+from config.strategies import require_strategy
 from database.client import get_service_client
 from exception.exceptions import BadRequestError, NotFoundError
 from logger.logger import get_logger
@@ -17,6 +18,8 @@ async def ingest_document(
     department_ids: list[str],
     existing_document_id: str | None,
     user_id: str,
+    chunking_strategy: str = "fixed_size_v1",
+    embedding_strategy: str = "bge_small",
 ) -> dict:
     """Handles both a brand new document and a new version of an existing
     one.
@@ -50,13 +53,35 @@ async def ingest_document(
     elif not department_ids:
         raise BadRequestError("At least one departmentId is required for a new document")
 
+    chunk_config = require_strategy("chunking", chunking_strategy)
+    embedding_config = require_strategy("embedding", embedding_strategy)
+
+    # The selectors are intentionally introduced before the algorithms.
+    # Only the V1 baseline is executable in this milestone; future choices
+    # are accepted by the UI but blocked here until their implementation is
+    # added. This prevents a selected strategy from silently running a
+    # different algorithm than the one the manager chose.
+    if not chunk_config["implemented"]:
+        raise BadRequestError(
+            f"Chunking strategy '{chunk_config['label']}' is not implemented yet. "
+            "The strategy selector is ready for its implementation in the next milestone."
+        )
+    if not embedding_config["implemented"]:
+        raise BadRequestError(
+            f"Embedding strategy '{embedding_config['label']}' is not implemented yet. "
+            "The strategy selector is ready for its implementation in the next milestone."
+        )
+
     chunk_drafts = chunk_fixed_size(text)
     if not chunk_drafts:
         raise BadRequestError("Document produced no chunks — check the extracted text")
 
     # The expensive, flaky, external part — done before any further DB
     # writes, and BEFORE the old version's chunks (if any) are touched.
-    embeddings = await embed_texts([c.content for c in chunk_drafts])
+    embeddings = await embed_texts(
+        [c.content for c in chunk_drafts],
+        model_name=embedding_config["model_name"],
+    )
 
     content_hash = sha256_hash(text)
     version_number = 1
@@ -101,6 +126,9 @@ async def ingest_document(
                     "version_number": version_number,
                     "content_hash": content_hash,
                     "storage_path": storage_path,
+                    "chunking_strategy": chunk_config["id"],
+                    "embedding_strategy": embedding_config["id"],
+                    "embedding_model": embedding_config["model_name"],
                 }
             )
             .execute()
@@ -159,6 +187,9 @@ async def ingest_document(
             "version_id": version_id,
             "version_number": version_number,
             "chunks_created": len(inserted_chunks.data),
+            "chunking_strategy": chunk_config["id"],
+            "embedding_strategy": embedding_config["id"],
+            "embedding_model": embedding_config["model_name"],
         }
 
     except Exception:

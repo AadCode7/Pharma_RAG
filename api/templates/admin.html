@@ -4,7 +4,7 @@
 <section class="panel">
   <header class="panel-header">
     <h2>Knowledge Base</h2>
-    <p>Add documents or publish a new version. Updating a document immediately retires its old chunks from retrieval.</p>
+    <p>Publish a document version and choose how its text will be chunked and embedded. Strategy implementations are being added incrementally.</p>
   </header>
 
   <form id="upload-form" class="upload-form">
@@ -22,6 +22,22 @@
       <textarea id="upload-text" rows="8" placeholder="Paste document text here if not uploading a file..."></textarea>
     </label>
 
+    <div class="strategy-grid strategy-grid-upload">
+      <label class="strategy-field">
+        <span class="strategy-label">Chunking strategy</span>
+        <select id="chunking-strategy" name="chunkingStrategy"></select>
+        <span class="strategy-help">Defines how the document is split before embeddings are created.</span>
+      </label>
+
+      <label class="strategy-field">
+        <span class="strategy-label">Embedding strategy</span>
+        <select id="embedding-strategy" name="embeddingStrategy"></select>
+        <span class="strategy-help">Defines the embedding model/configuration used for the stored chunks.</span>
+      </label>
+    </div>
+
+    <div id="upload-strategy-status" class="strategy-status" hidden></div>
+
     <fieldset id="upload-departments" class="dept-fieldset">
       <legend>Visible to departments</legend>
       <div id="dept-checkboxes" class="dept-checkboxes"></div>
@@ -32,8 +48,10 @@
     <p id="upload-status" class="auth-status" hidden></p>
   </form>
 
-  <h3 class="admin-subhead">Existing documents</h3>
-  <ul id="admin-doc-list" class="doc-list"></ul>
+  <div class="admin-selection-note">
+    <strong>Selected configuration</strong>
+    <span id="selected-upload-config">Fixed Size · BGE Small</span>
+  </div>
 </section>
 {% endblock %}
 {% block page_script %}

@@ -18,6 +18,8 @@ async def ingest(payload: IngestRequest, request: Request):
         department_ids=payload.department_ids,
         existing_document_id=payload.existing_document_id,
         user_id=user_id,
+        chunking_strategy=payload.chunking_strategy,
+        embedding_strategy=payload.embedding_strategy,
     )
 
     return {
@@ -25,4 +27,7 @@ async def ingest(payload: IngestRequest, request: Request):
         "versionId": result["version_id"],
         "versionNumber": result["version_number"],
         "chunksCreated": result["chunks_created"],
+        "chunkingStrategy": result["chunking_strategy"],
+        "embeddingStrategy": result["embedding_strategy"],
+        "embeddingModel": result["embedding_model"],
     }

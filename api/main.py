@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from api.routes import departments, documents, ingest, query, traces
+from api.routes import departments, documents, ingest, query, strategies, traces
 from config.settings import settings
 from exception.exceptions import AppError
 from exception.handlers import app_error_handler, unhandled_error_handler
@@ -25,6 +25,7 @@ app.include_router(ingest.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(traces.router, prefix="/api")
 app.include_router(departments.router, prefix="/api")
+app.include_router(strategies.router, prefix="/api")
 
 
 # ---------------------------------------------------------------
