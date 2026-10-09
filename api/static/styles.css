@@ -752,9 +752,6 @@ pre.prompt-block-muted {
    while the user moves between Query, Trace, Sources, Evaluation, and
    Knowledge Base.
 =========================================================== */
-body {
-  padding-right: 320px;
-}
 
 .documents-rail {
   position: fixed;
