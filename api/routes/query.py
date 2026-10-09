@@ -48,7 +48,10 @@ async def run_query(payload: QueryRequest, request: Request):
 
     # 1. Embed the query
     t_embed = time.perf_counter()
-    [query_embedding] = await embed_texts([payload.query])
+    [query_embedding] = await embed_texts(
+        [payload.query],
+        input_type="search_query",
+    )
     latency["embedding_ms"] = int((time.perf_counter() - t_embed) * 1000)
 
     # 2. Retrieve — department filtering happens inside match_chunks itself,
