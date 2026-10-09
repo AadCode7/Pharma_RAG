@@ -89,6 +89,7 @@ async def ingest_document(
     embeddings = await embed_texts(
         [c.content for c in chunk_drafts],
         model_name=embedding_config["model_name"],
+        input_type="search_document",
     )
 
     content_hash = sha256_hash(text)
@@ -162,7 +163,7 @@ async def ingest_document(
         )
 
         embedding_rows = [
-            {"chunk_id": chunk["id"], "model_name": settings.embedding_model, "embedding": embedding}
+            {"chunk_id": chunk["id"], "model_name": embedding_config["model_name"], "embedding": embedding}
             for chunk, embedding in zip(inserted_chunks.data, embeddings)
         ]
         service.table("chunk_embeddings").insert(embedding_rows).execute()
@@ -294,7 +295,10 @@ async def repair_document_embeddings(document_id: str) -> dict:
     if not missing:
         return {"repaired": 0, "chunksTotal": len(chunks.data)}
 
-    embeddings = await embed_texts([chunk["content"] for chunk in missing])
+    embeddings = await embed_texts(
+        [chunk["content"] for chunk in missing],
+        input_type="search_document",
+    )
     service.table("chunk_embeddings").insert(
         [
             {"chunk_id": chunk["id"], "model_name": settings.embedding_model, "embedding": embedding}
