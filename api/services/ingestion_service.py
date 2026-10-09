@@ -7,7 +7,7 @@ from database.client import get_service_client
 from exception.exceptions import BadRequestError, NotFoundError
 from logger.logger import get_logger
 from utils.hashing import sha256_hash
-from utils.text import chunk_fixed_size
+from utils.text import chunk_fixed_size, chunk_recursive_character
 
 logger = get_logger(__name__)
 
@@ -21,22 +21,9 @@ async def ingest_document(
     chunking_strategy: str = "fixed_size_v1",
     embedding_strategy: str = "bge_small",
 ) -> dict:
-    """Handles both a brand new document and a new version of an existing
-    one.
-
-    Ordering is deliberate and fixes a real bug: chunk + embed the new text
-    FIRST, before writing anything chunk-related to the DB. Only once
-    embedding has actually succeeded do we create the new version's chunks
-    and (for an update) deactivate the old version's. Previously, chunks
-    were inserted BEFORE calling embed_texts() — if that call then failed
-    (a flaky/misconfigured embedding API, exactly what happened here), the
-    chunks stayed in the DB with is_active=true but no chunk_embeddings row.
-    match_chunks() joins FROM chunk_embeddings, so those chunks silently
-    never appeared in retrieval — no error, no trace, nothing. That's what
-    happened to the HPLC document.
+    """Handles both a brand new document and a new version of an existing one.
     """
-    # PostgreSQL text columns reject NUL characters, which can appear when a
-    # binary file is decoded incorrectly by a client.
+    
     text = text.replace("\x00", "")
     if not text.strip():
         raise BadRequestError("Document text is empty after removing unsupported characters")
@@ -56,11 +43,7 @@ async def ingest_document(
     chunk_config = require_strategy("chunking", chunking_strategy)
     embedding_config = require_strategy("embedding", embedding_strategy)
 
-    # The selectors are intentionally introduced before the algorithms.
-    # Only the V1 baseline is executable in this milestone; future choices
-    # are accepted by the UI but blocked here until their implementation is
-    # added. This prevents a selected strategy from silently running a
-    # different algorithm than the one the manager chose.
+    
     if not chunk_config["implemented"]:
         raise BadRequestError(
             f"Chunking strategy '{chunk_config['label']}' is not implemented yet. "
@@ -72,7 +55,10 @@ async def ingest_document(
             "The strategy selector is ready for its implementation in the next milestone."
         )
 
-    chunk_drafts = chunk_fixed_size(text)
+    if chunk_config["id"] == "fixed_size_v1":
+        chunk_drafts = chunk_fixed_size(text)
+    elif chunk_config["id"] == "recursive":
+        chunk_drafts = chunk_recursive_character(text)
     if not chunk_drafts:
         raise BadRequestError("Document produced no chunks — check the extracted text")
 
@@ -159,12 +145,7 @@ async def ingest_document(
         ]
         service.table("chunk_embeddings").insert(embedding_rows).execute()
 
-        # Only now — once the new version is fully chunked AND embedded —
-        # flip the pointer and retire the old version's chunks. Up until
-        # this line, retrieval has been serving the previous version the
-        # entire time, uninterrupted. If this is a version update and
-        # anything above failed, the old version is still fully intact and
-        # active; nothing was ever taken offline.
+       
         service.table("documents").update({"current_version_id": version_id}).eq("id", document_id).execute()
 
         if not created_new_document:

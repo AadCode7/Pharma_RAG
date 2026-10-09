@@ -5,13 +5,6 @@ import httpx
 from config.settings import settings
 from exception.exceptions import UpstreamServiceError
 
-# KNOWN RISK (see progress.md): HF's free serverless inference routing has
-# changed more than once, and not every model is guaranteed to be served on
-# the free feature-extraction endpoint at any given time. Verify this works
-# for your chosen model before relying on it — see the curl check in
-# README.md. Documented fallback: run the model in-process with
-# sentence-transformers (still free, no API dependency, larger deploy size).
-
 MAX_ATTEMPTS = 3
 
 

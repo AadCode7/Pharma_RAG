@@ -18,7 +18,7 @@ STRATEGIES = {
             "id": "recursive",
             "label": "Recursive Character",
             "description": "Recursively splits text while preserving natural boundaries.",
-            "implemented": False,
+            "implemented": True,
             "default": False,
         },
         {
