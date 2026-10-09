@@ -16,22 +16,34 @@ class Settings(BaseSettings):
     embedding_dim: int = 384  # Cohere embed-english-light-v3.0 returns 384 dimensions
 
     groq_api_key: str
-    groq_model: str = "llama-3.3-70b-versatile"
+    # Production model supported by Groq. An explicit Vercel env var can override
+    # this, so normalize known retired IDs below.
+    groq_model: str = "openai/gpt-oss-120b"
 
     @field_validator("embedding_model", mode="before")
     @classmethod
     def normalize_legacy_embedding_model(cls, value: object) -> object:
-        """Map the old Hugging Face default to the active Cohere model.
-
-        Vercel may still have EMBEDDING_MODEL=BAAI/bge-small-en-v1.5 from
-        the previous provider configuration. That model ID is not valid for
-        Cohere's Embed API, so normalize this known legacy value at startup.
-        """
+        """Map the old Hugging Face default to the active Cohere model."""
         if isinstance(value, str) and value.strip().lower() in {
             "baai/bge-small-en-v1.5",
             "bge-small-en-v1.5",
         }:
             return "embed-english-light-v3.0"
+        return value
+
+    @field_validator("groq_model", mode="before")
+    @classmethod
+    def normalize_retired_groq_model(cls, value: object) -> object:
+        """Avoid a retired Qwen model configured in the deployment environment.
+
+        Groq retired qwen/qwen3.6-27b in September 2026. Use the supported
+        production GPT-OSS 120B model when that legacy value is still configured.
+        """
+        if isinstance(value, str) and value.strip().lower() in {
+            "qwen/qwen3.6-27b",
+            "qwen3.6-27b",
+        }:
+            return "openai/gpt-oss-120b"
         return value
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
