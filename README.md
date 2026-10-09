@@ -56,22 +56,19 @@ uvicorn api.main:app --reload
 
 Visit `http://localhost:8000`.
 
-## 3. Before you deploy — verify two things I couldn't test
+## 3. Before you deploy — verify the integrations
 
-This was built in a sandbox with no network access to huggingface.co,
-groq.com, or supabase.co, so these two integrations are written against each
-service's documented API/SDK shape but not runtime-verified:
+The Cohere Embed API and Supabase Storage upload call should be verified
+against your own credentials and deployed environment before production use.
 
-**a) The Hugging Face embedding call.** Their free serverless inference
-routing for feature-extraction has changed more than once.
-```bash
-curl https://api-inference.huggingface.co/pipeline/feature-extraction/BAAI/bge-small-en-v1.5 \
-  -H "Authorization: Bearer $HF_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"inputs": ["test sentence"]}'
-```
-You should get back a numeric array. If not, see the fallback note in
-`api/services/embedding_service.py`.
+**a) Cohere embeddings.** Create an API key in the
+[Cohere dashboard](https://dashboard.cohere.com/api-keys), then set
+`COHERE_API_KEY` in your local `.env` file and in your deployment's
+environment variables. The default embedding model is
+`embed-english-light-v3.0` (384 dimensions). The embedding service sends
+document chunks with `input_type="search_document"` and user questions with
+`input_type="search_query"`. Requests are batched at a maximum of 96 texts.
+Never commit your actual API key.
 
 **b) The Supabase Storage upload call** in `api/services/ingestion_service.py`.
 `supabase-py`'s `storage.from_(...).upload(...)` signature (positional args,

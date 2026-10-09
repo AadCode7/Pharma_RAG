@@ -17,8 +17,8 @@ STRATEGIES = {
         {
             "id": "recursive",
             "label": "Recursive Character",
-            "description": "Recursively splits text while preserving natural boundaries.",
-            "implemented": False,
+            "description": "Splits at paragraph, line, word, then character boundaries with overlap.",
+            "implemented": True,
             "default": False,
         },
         {
@@ -53,11 +53,11 @@ STRATEGIES = {
     "embedding": [
         {
             "id": "bge_small",
-            "label": "BGE Small",
-            "description": "BAAI/bge-small-en-v1.5, 384 dimensions. Current V1 baseline.",
+            "label": "Cohere English Light",
+            "description": "Cohere embed-english-light-v3.0, 384 dimensions. Current V1 baseline.",
             "implemented": True,
             "default": True,
-            "model_name": "BAAI/bge-small-en-v1.5",
+            "model_name": "embed-english-light-v3.0",
             "dimension": 384,
         },
         {

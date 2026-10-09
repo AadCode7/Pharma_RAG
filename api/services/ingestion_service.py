@@ -7,7 +7,7 @@ from database.client import get_service_client
 from exception.exceptions import BadRequestError, NotFoundError
 from logger.logger import get_logger
 from utils.hashing import sha256_hash
-from utils.text import chunk_fixed_size
+from utils.text import chunk_fixed_size, chunk_recursive_character
 
 logger = get_logger(__name__)
 
@@ -72,7 +72,15 @@ async def ingest_document(
             "The strategy selector is ready for its implementation in the next milestone."
         )
 
-    chunk_drafts = chunk_fixed_size(text)
+    if chunk_config["id"] == "fixed_size_v1":
+        chunk_drafts = chunk_fixed_size(text)
+    elif chunk_config["id"] == "recursive":
+        chunk_drafts = chunk_recursive_character(text)
+    else:
+        raise BadRequestError(
+            f"Chunking strategy '{chunk_config['label']}' is not implemented yet."
+        )
+
     if not chunk_drafts:
         raise BadRequestError("Document produced no chunks — check the extracted text")
 
@@ -81,6 +89,7 @@ async def ingest_document(
     embeddings = await embed_texts(
         [c.content for c in chunk_drafts],
         model_name=embedding_config["model_name"],
+        input_type="search_document",
     )
 
     content_hash = sha256_hash(text)
@@ -154,7 +163,7 @@ async def ingest_document(
         )
 
         embedding_rows = [
-            {"chunk_id": chunk["id"], "model_name": settings.embedding_model, "embedding": embedding}
+            {"chunk_id": chunk["id"], "model_name": embedding_config["model_name"], "embedding": embedding}
             for chunk, embedding in zip(inserted_chunks.data, embeddings)
         ]
         service.table("chunk_embeddings").insert(embedding_rows).execute()
@@ -286,7 +295,10 @@ async def repair_document_embeddings(document_id: str) -> dict:
     if not missing:
         return {"repaired": 0, "chunksTotal": len(chunks.data)}
 
-    embeddings = await embed_texts([chunk["content"] for chunk in missing])
+    embeddings = await embed_texts(
+        [chunk["content"] for chunk in missing],
+        input_type="search_document",
+    )
     service.table("chunk_embeddings").insert(
         [
             {"chunk_id": chunk["id"], "model_name": settings.embedding_model, "embedding": embedding}

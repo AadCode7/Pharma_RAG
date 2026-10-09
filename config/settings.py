@@ -2,17 +2,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Centralized env-driven config. Loaded once at import time via the
-    `settings` singleton below — every other module imports that, never
-    reads os.environ directly."""
+    """Centralized environment-driven configuration, loaded once at import."""
 
     supabase_url: str
     supabase_anon_key: str
     supabase_service_role_key: str
 
-    hf_api_token: str
-    embedding_model: str = "BAAI/bge-small-en-v1.5"
-    embedding_dim: int = 384  # must match `vector(384)` in the DB schema if this model changes
+    # Optional at startup so the login page and public routes remain available
+    # while deployment secrets are being configured. Embedding calls validate it.
+    cohere_api_key: str = ""
+    embedding_model: str = "embed-english-light-v3.0"
+    embedding_dim: int = 384  # Cohere embed-english-light-v3.0 returns 384 dimensions
 
     groq_api_key: str
     groq_model: str = "llama-3.3-70b-versatile"
