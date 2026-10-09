@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +17,22 @@ class Settings(BaseSettings):
 
     groq_api_key: str
     groq_model: str = "llama-3.3-70b-versatile"
+
+    @field_validator("embedding_model", mode="before")
+    @classmethod
+    def normalize_legacy_embedding_model(cls, value: object) -> object:
+        """Map the old Hugging Face default to the active Cohere model.
+
+        Vercel may still have EMBEDDING_MODEL=BAAI/bge-small-en-v1.5 from
+        the previous provider configuration. That model ID is not valid for
+        Cohere's Embed API, so normalize this known legacy value at startup.
+        """
+        if isinstance(value, str) and value.strip().lower() in {
+            "baai/bge-small-en-v1.5",
+            "bge-small-en-v1.5",
+        }:
+            return "embed-english-light-v3.0"
+        return value
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
