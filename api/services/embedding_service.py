@@ -27,6 +27,11 @@ async def embed_texts(
         return []
 
     selected_model = model_name or settings.embedding_model
+    if not settings.cohere_api_key.strip():
+        raise UpstreamServiceError(
+            "Cohere is not configured. Set COHERE_API_KEY in the deployment environment "
+            "to enable document embeddings and retrieval. The login page can still load."
+        )
     if input_type not in ("search_document", "search_query"):
         raise ValueError("input_type must be 'search_document' or 'search_query'")
 
