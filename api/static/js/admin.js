@@ -81,7 +81,7 @@ function updateUploadStrategyStatus() {
 
   if (unavailable.length === 0) {
     status.className = 'strategy-status';
-    status.textContent = 'Current executable configuration: Fixed Size chunking with BGE Small embeddings.';
+    status.textContent = `Executable configuration: ${chunking.textContent.replace(' — coming next', '')} chunking with ${embedding.textContent.replace(' — coming next', '')} embeddings.`;
   } else {
     status.className = 'strategy-status is-warning';
     status.textContent = 'The selected strategy is visible here so its configuration contract is ready, but its implementation will be added in a later milestone.';
