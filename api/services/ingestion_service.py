@@ -301,7 +301,7 @@ async def repair_document_embeddings(document_id: str) -> dict:
     )
     service.table("chunk_embeddings").insert(
         [
-            {"chunk_id": chunk["id"], "model_name": embedding_config["model_name"], "embedding": embedding}
+            {"chunk_id": chunk["id"], "model_name": settings.embedding_model, "embedding": embedding}
             for chunk, embedding in zip(missing, embeddings)
         ]
     ).execute()
