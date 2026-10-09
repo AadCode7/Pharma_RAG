@@ -7,7 +7,7 @@ from database.client import get_service_client
 from exception.exceptions import BadRequestError, NotFoundError
 from logger.logger import get_logger
 from utils.hashing import sha256_hash
-from utils.text import chunk_fixed_size
+from utils.text import chunk_fixed_size, chunk_recursive_character
 
 logger = get_logger(__name__)
 
@@ -72,7 +72,15 @@ async def ingest_document(
             "The strategy selector is ready for its implementation in the next milestone."
         )
 
-    chunk_drafts = chunk_fixed_size(text)
+    if chunk_config["id"] == "fixed_size_v1":
+        chunk_drafts = chunk_fixed_size(text)
+    elif chunk_config["id"] == "recursive":
+        chunk_drafts = chunk_recursive_character(text)
+    else:
+        raise BadRequestError(
+            f"Chunking strategy '{chunk_config['label']}' is not implemented yet."
+        )
+
     if not chunk_drafts:
         raise BadRequestError("Document produced no chunks — check the extracted text")
 
