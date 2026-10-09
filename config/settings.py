@@ -8,7 +8,9 @@ class Settings(BaseSettings):
     supabase_anon_key: str
     supabase_service_role_key: str
 
-    cohere_api_key: str
+    # Optional at startup so the login page and public routes remain available
+    # while deployment secrets are being configured. Embedding calls validate it.
+    cohere_api_key: str = ""
     embedding_model: str = "embed-english-light-v3.0"
     embedding_dim: int = 384  # Cohere embed-english-light-v3.0 returns 384 dimensions
 
