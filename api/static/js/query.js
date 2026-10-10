@@ -48,13 +48,13 @@ function updateStrategyStatus() {
   if (unavailable.length === 0) {
     status.hidden = false;
     status.className = 'strategy-status';
-    status.textContent = 'Current execution: Standard dense retrieval with no reranking.';
+    status.textContent = `Current execution: ${retrievalOption?.textContent || 'Dense Retrieval (Semantic)'} with ${rerankingOption?.textContent || 'No Reranking'}.`;
     return;
   }
 
   status.hidden = false;
   status.className = 'strategy-status is-warning';
-  status.textContent = 'This strategy is available in the configuration UI, but its algorithm is not implemented yet. Implementations will be added one by one.';
+  status.textContent = 'The selected strategy is not implemented on this deployment yet. Choose an implemented strategy or update the deployment.';
 }
 
 async function handleSubmit(e) {
