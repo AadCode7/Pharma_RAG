@@ -54,13 +54,13 @@ async def run_query(payload: QueryRequest, request: Request):
 
     # Lexical-only strategies do not make an unnecessary embedding API call.
     if strategy_id in {"standard", "hybrid", "hyde", "mmr"}:
-        t_embed = time.perf_counter()
         embedding_text = payload.query
         if strategy_id == "hyde":
             t_hyde = time.perf_counter()
             hypothetical_document = await generate_hypothetical_document(payload.query)
             latency["hyde_generation_ms"] = int((time.perf_counter() - t_hyde) * 1000)
             embedding_text = hypothetical_document
+        t_embed = time.perf_counter()
         [query_embedding] = await embed_texts(
             [embedding_text],
             input_type="search_query",
