@@ -234,7 +234,7 @@ function formatStrategy(value) {
     semantic: 'Semantic',
     section_aware: 'Section Aware',
     parent_child: 'Parent / Child',
-    bge_small: 'BGE Small',
+    bge_small: 'Cohere English Light',
     bge_base: 'BGE Base',
     e5_base: 'E5 Base',
     openai_small: 'OpenAI Small',
