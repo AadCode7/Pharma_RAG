@@ -83,13 +83,25 @@ def visible_chunks(caller_id: str) -> list[dict]:
     corpora this can later be moved into indexed PostgreSQL full-text search.
     """
     service = get_service_client()
-    result = service.rpc(
-        "visible_chunks_for_retrieval",
-        {"caller_id": caller_id},
-    ).execute()
-    if result.data is None:
-        raise UpstreamServiceError("Visible-chunk retrieval RPC returned no data")
-    return result.data
+    page_size = 500
+    offset = 0
+    rows: list[dict] = []
+    while True:
+        result = service.rpc(
+            "visible_chunks_for_retrieval",
+            {
+                "p_caller_id": caller_id,
+                "p_offset": offset,
+                "p_limit": page_size,
+            },
+        ).execute()
+        if result.data is None:
+            raise UpstreamServiceError("Visible-chunk retrieval RPC returned no data")
+        page = result.data
+        rows.extend(page)
+        if len(page) < page_size:
+            return rows
+        offset += page_size
 
 
 def _normalise_scores(matches: list[dict], raw_scores: dict[str, float]) -> list[dict]:
