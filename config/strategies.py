@@ -1,9 +1,4 @@
-"""Central registry for RAG strategy choices.
-
-This file intentionally contains configuration/metadata only. The actual
-strategy implementations will be added one at a time without changing the
-API/UI contract created here.
-"""
+"""Central registry for selectable RAG strategies and their implementation status."""
 
 STRATEGIES = {
     "chunking": [
@@ -24,29 +19,29 @@ STRATEGIES = {
         {
             "id": "sentence",
             "label": "Sentence Based",
-            "description": "Builds chunks around complete sentences.",
-            "implemented": False,
+            "description": "Groups complete sentences into bounded chunks with sentence overlap.",
+            "implemented": True,
             "default": False,
         },
         {
             "id": "semantic",
             "label": "Semantic Chunking",
-            "description": "Groups semantically related passages into chunks.",
-            "implemented": False,
+            "description": "Groups adjacent sentences using cosine similarity between Cohere embeddings.",
+            "implemented": True,
             "default": False,
         },
         {
             "id": "section_aware",
             "label": "Section Aware",
-            "description": "Uses document headings and sections as chunk boundaries.",
-            "implemented": False,
+            "description": "Keeps detected headings attached to their sections and safely splits oversized sections.",
+            "implemented": True,
             "default": False,
         },
         {
             "id": "parent_child",
             "label": "Parent / Child",
-            "description": "Keeps small retrieval chunks linked to larger context windows.",
-            "implemented": False,
+            "description": "Embeds small child chunks and supplies their larger parent passage as answer context.",
+            "implemented": True,
             "default": False,
         },
     ],
