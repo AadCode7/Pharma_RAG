@@ -253,7 +253,6 @@ def hybrid_chunks(
 
 
 def mmr_chunks(
-    query: str,
     query_embedding: list[float],
     caller_id: str,
     match_count: int,
