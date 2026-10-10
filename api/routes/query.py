@@ -90,7 +90,7 @@ async def run_query(payload: QueryRequest, request: Request):
         matches = diversify_chunks(candidates, payload.k, max_per_document=2)
     elif strategy_id == "mmr":
         matches = mmr_chunks(
-            payload.query, query_embedding, user_id, payload.k, candidate_count
+            query_embedding, user_id, payload.k, candidate_count
         )
     else:
         # Defensive guard if the registry and dispatcher ever drift apart.
