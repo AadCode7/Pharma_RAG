@@ -68,7 +68,7 @@ class RetrievalAlgorithmTests(unittest.TestCase):
             dict(CORPUS[2], similarity=0.90),
             dict(CORPUS[1], similarity=0.75),
         ]
-        result = retrieval.mmr_chunks("adverse events", [0.1, 0.2], "user-1", 2, 3)
+        result = retrieval.mmr_chunks([0.1, 0.2], "user-1", 2, 3)
         self.assertEqual(len(result), 2)
         self.assertEqual(len({row["chunk_id"] for row in result}), 2)
         self.assertTrue(all(0.0 <= row["similarity"] <= 1.0 for row in result))
