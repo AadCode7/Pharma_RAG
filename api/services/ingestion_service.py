@@ -159,7 +159,7 @@ async def ingest_document(
                         "chunk_strategy": c.chunk_strategy,
                         "char_start": c.char_start,
                         "char_end": c.char_end,
-                        "parent_content": c.parent_content,
+                        **({"parent_content": c.parent_content} if c.parent_content is not None else {}),
                     }
                     for c in chunk_drafts
                 ]
