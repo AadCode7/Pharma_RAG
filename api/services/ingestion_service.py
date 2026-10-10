@@ -7,7 +7,14 @@ from database.client import get_service_client
 from exception.exceptions import BadRequestError, NotFoundError
 from logger.logger import get_logger
 from utils.hashing import sha256_hash
-from utils.text import chunk_fixed_size, chunk_recursive_character
+from utils.text import (
+    chunk_fixed_size,
+    chunk_parent_child,
+    chunk_recursive_character,
+    chunk_section_aware,
+    chunk_semantic,
+    chunk_sentence_based,
+)
 
 logger = get_logger(__name__)
 
@@ -56,30 +63,27 @@ async def ingest_document(
     chunk_config = require_strategy("chunking", chunking_strategy)
     embedding_config = require_strategy("embedding", embedding_strategy)
 
-    # The selectors are intentionally introduced before the algorithms.
-    # Only the V1 baseline is executable in this milestone; future choices
-    # are accepted by the UI but blocked here until their implementation is
-    # added. This prevents a selected strategy from silently running a
-    # different algorithm than the one the manager chose.
-    if not chunk_config["implemented"]:
-        raise BadRequestError(
-            f"Chunking strategy '{chunk_config['label']}' is not implemented yet. "
-            "The strategy selector is ready for its implementation in the next milestone."
-        )
     if not embedding_config["implemented"]:
         raise BadRequestError(
             f"Embedding strategy '{embedding_config['label']}' is not implemented yet. "
             "The strategy selector is ready for its implementation in the next milestone."
         )
 
-    if chunk_config["id"] == "fixed_size_v1":
+    chunking_id = chunk_config["id"]
+    if chunking_id == "fixed_size_v1":
         chunk_drafts = chunk_fixed_size(text)
-    elif chunk_config["id"] == "recursive":
+    elif chunking_id == "recursive":
         chunk_drafts = chunk_recursive_character(text)
+    elif chunking_id == "sentence":
+        chunk_drafts = chunk_sentence_based(text)
+    elif chunking_id == "semantic":
+        chunk_drafts = await chunk_semantic(text, embedding_config["model_name"])
+    elif chunking_id == "section_aware":
+        chunk_drafts = chunk_section_aware(text)
+    elif chunking_id == "parent_child":
+        chunk_drafts = chunk_parent_child(text)
     else:
-        raise BadRequestError(
-            f"Chunking strategy '{chunk_config['label']}' is not implemented yet."
-        )
+        raise BadRequestError(f"Unsupported chunking strategy: {chunking_id}")
 
     if not chunk_drafts:
         raise BadRequestError("Document produced no chunks — check the extracted text")
@@ -155,6 +159,7 @@ async def ingest_document(
                         "chunk_strategy": c.chunk_strategy,
                         "char_start": c.char_start,
                         "char_end": c.char_end,
+                        "parent_content": c.parent_content,
                     }
                     for c in chunk_drafts
                 ]
