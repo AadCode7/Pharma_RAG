@@ -17,9 +17,9 @@ DEFAULT_CHILD_SIZE_CHARS = 450
 DEFAULT_CHILD_OVERLAP_CHARS = 60
 
 # Split on common sentence terminators while retaining punctuation and source offsets.
-_SENTENCE_RE = re.compile(r".+?(?:[.!?]+(?:[\"')\]]*)?(?:\\s+|$)|\\n+|$)", re.DOTALL)
+_SENTENCE_RE = re.compile(r".+?(?:[.!?]+(?:[\"')\]]*)?(?:\s+|$)|\n+|$)", re.DOTALL)
 _HEADING_RE = re.compile(
-    r"(?m)^\\s*(?:(?:#{1,6}\\s+.+)|(?:\\d+(?:\\.\\d+)*[.)]?\\s+[^\\n]{2,120})|(?:[A-Z][A-Z0-9 /&(),:'’\\-]{3,100}))\\s*$"
+    r"(?m)^\s*(?:(?:#{1,6}\s+.+)|(?:\d+(?:\.\d+)*[.)]?\s+[^\n]{2,120})|(?:[A-Z][A-Z0-9 /&(),:'’\-]{3,100}))\s*$"
 )
 
 
@@ -112,7 +112,7 @@ def chunk_recursive_character(
         chunk_size=chunk_size_chars,
         chunk_overlap=overlap_chars,
         length_function=len,
-        separators=["\\n\\n", "\\n", " ", ""],
+        separators=["\n\n", "\n", " ", ""],
         keep_separator=True,
         strip_whitespace=True,
         add_start_index=True,
@@ -175,17 +175,13 @@ async def chunk_semantic(
     groups: list[list[tuple[int, int, str]]] = []
     current = [spans[0]]
     for index in range(1, len(spans)):
-        current_text_len = current[-1][1] - current[0][0]
         similarity = cosine(vectors[index - 1], vectors[index])
-        if similarity >= similarity_threshold and spans[index][1] - current[0][0] <= chunk_size_chars:
+        proposed_size = spans[index][1] - current[0][0]
+        if similarity >= similarity_threshold and proposed_size <= chunk_size_chars:
             current.append(spans[index])
         else:
             groups.append(current)
             current = [spans[index]]
-        # Hard upper bound prevents a long semantic run becoming one huge chunk.
-        if current_text_len >= chunk_size_chars and len(current) > 1:
-            groups.append(current[:-1])
-            current = [current[-1]]
     if current:
         groups.append(current)
 
@@ -249,7 +245,7 @@ def chunk_parent_child(
     while parent_start < len(text):
         parent_end = min(parent_start + parent_size_chars, len(text))
         if parent_end < len(text):
-            boundary = text.rfind("\\n\\n", parent_start, parent_end)
+            boundary = text.rfind("\n\n", parent_start, parent_end)
             if boundary > parent_start + parent_size_chars // 2:
                 parent_end = boundary
         parent_content = text[parent_start:parent_end].strip()
