@@ -36,7 +36,7 @@ function renderDocumentsRail(documents) {
       : 'No published version';
 
     const strategySummary = current
-      ? `${formatStrategy(current.chunking_strategy)} · ${formatStrategy(current.embedding_strategy)}`
+      ? `${formatStrategy(current.chunking_strategy)} · ${formatStrategy(current.embedding_strategy, current.embedding_model)}`
       : 'Strategy configuration unavailable';
 
     card.innerHTML = `
@@ -94,14 +94,19 @@ function renderVersionHistory(doc) {
               ${version.id === doc.current_version_id ? 'current' : 'superseded'}
             </span>
           </div>
-          <p class="documents-rail-history-meta">${escapeHtml(formatStrategy(version.chunking_strategy))} · ${escapeHtml(formatStrategy(version.embedding_strategy))}</p>
+          <p class="documents-rail-history-meta">${escapeHtml(formatStrategy(version.chunking_strategy))} · ${escapeHtml(formatStrategy(version.embedding_strategy, version.embedding_model))}</p>
         `).join('')}
       </div>
     </details>
   `;
 }
 
-function formatStrategy(value) {
+function formatStrategy(value, modelName = '') {
+  // The stored strategy ID is a legacy UI identifier in some deployments
+  // (bge_small), so use the actual persisted model name when available.
+  if (modelName === 'embed-english-light-v3.0') return 'Cohere English Light';
+  if (modelName === 'BAAI/bge-small-en-v1.5') return 'BGE Small';
+
   const labels = {
     fixed_size_v1: 'Fixed Size',
     recursive: 'Recursive',
@@ -109,7 +114,7 @@ function formatStrategy(value) {
     semantic: 'Semantic',
     section_aware: 'Section Aware',
     parent_child: 'Parent / Child',
-    bge_small: 'BGE Small',
+    bge_small: 'Cohere English Light',
     bge_base: 'BGE Base',
     e5_base: 'E5 Base',
     openai_small: 'OpenAI Small',
