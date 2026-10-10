@@ -9,7 +9,6 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
-from typing import Iterable
 
 from config.settings import settings
 from database.client import get_service_client
@@ -180,11 +179,32 @@ def tfidf_chunks(query: str, caller_id: str, match_count: int) -> list[dict]:
         return []
 
     document_terms = [_tokens(row.get("content", "")) for row in corpus]
-    vectors = _tfidf_vectors([*document_terms, query_terms])
-    query_vector = vectors[-1]
+    vectors = _tfidf_vectors(document_terms)
+
+    # Fit IDF on the document corpus only, then transform the query with the
+    # same weights so query terms do not alter corpus document frequencies.
+    document_frequency: Counter[str] = Counter()
+    for terms in document_terms:
+        document_frequency.update(set(terms))
+    idf = {
+        term: math.log((1 + len(corpus)) / (1 + frequency)) + 1.0
+        for term, frequency in document_frequency.items()
+    }
+    query_frequency = Counter(query_terms)
+    query_vector = {
+        term: float(freq) * idf[term]
+        for term, freq in query_frequency.items()
+        if term in idf
+    }
+    query_norm = math.sqrt(sum(value * value for value in query_vector.values()))
+    if query_norm:
+        query_vector = {term: value / query_norm for term, value in query_vector.items()}
+    else:
+        return []
+
     scores = {
         str(row["chunk_id"]): _sparse_cosine(vector, query_vector)
-        for row, vector in zip(corpus, vectors[:-1])
+        for row, vector in zip(corpus, vectors)
     }
     ranked = _normalise_scores(corpus, scores)
     return [row for row in ranked if row["similarity"] > 0][:match_count]
