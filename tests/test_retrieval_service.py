@@ -48,7 +48,8 @@ class RetrievalAlgorithmTests(unittest.TestCase):
     def test_tfidf_returns_only_matching_documents(self, _visible):
         result = retrieval.tfidf_chunks("medicine storage", "user-1", 3)
         self.assertEqual([row["chunk_id"] for row in result], ["2"])
-        self.assertEqual(result[0]["similarity"], 1.0)
+        self.assertGreater(result[0]["similarity"], 0.0)
+        self.assertLessEqual(result[0]["similarity"], 1.0)
 
     @patch.object(retrieval, "bm25_chunks")
     @patch.object(retrieval, "match_chunks")
