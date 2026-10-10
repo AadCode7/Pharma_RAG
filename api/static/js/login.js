@@ -1,5 +1,38 @@
-// If there's already a live session, skip the login page entirely.
-(async function redirectIfSignedIn() {
+// Handle Supabase email-confirmation redirects before applying the normal
+// signed-in redirect. Supabase may return auth tokens in the URL hash after
+// confirming the address; the client consumes those tokens during initialization.
+const authStatus = document.getElementById('auth-status');
+
+(async function initializeLoginPage() {
+  const params = new URLSearchParams(window.location.search);
+  const emailConfirmed = params.get('email_confirmed') === '1';
+  const authError = params.get('error_description') || params.get('error');
+
+  if (emailConfirmed) {
+    // A confirmation link can establish a session automatically. This app's
+    // requested flow is confirmation -> login, so clear only this local session
+    // and require the user to sign in with their credentials.
+    const { data } = await sb.auth.getSession();
+    if (data.session) {
+      const { error } = await sb.auth.signOut({ scope: 'local' });
+      if (error) console.warn('[Pharma RAG] Could not clear confirmation session:', error);
+    }
+
+    window.history.replaceState({}, document.title, '/login');
+    authStatus.hidden = false;
+    authStatus.className = 'auth-status';
+    authStatus.textContent = 'Email confirmed successfully. You can now sign in.';
+    return;
+  }
+
+  if (authError) {
+    window.history.replaceState({}, document.title, '/login');
+    authStatus.hidden = false;
+    authStatus.className = 'auth-status is-error';
+    authStatus.textContent = 'We could not confirm your email. The link may have expired or already been used. Request a new confirmation email or try signing in.';
+    return;
+  }
+
   const { data } = await sb.auth.getSession();
   if (data.session) window.location.replace('/');
 })();
@@ -19,7 +52,6 @@ const authSubmit = document.getElementById('auth-submit');
 const authToggleBtn = document.getElementById('auth-toggle-btn');
 const authToggleText = document.getElementById('auth-toggle-text');
 const fullnameGroup = document.getElementById('fullname-group');
-const authStatus = document.getElementById('auth-status');
 const authPasswordInput = document.getElementById('auth-password');
 
 function setAuthMode(mode) {
@@ -62,20 +94,29 @@ authForm.addEventListener('submit', async (e) => {
       const { data, error } = await sb.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName } },
+        options: {
+          data: { full_name: fullName },
+          // Supabase verifies the token first, then returns the browser to this
+          // app's login page. Add this URL to Supabase Auth's allowed redirects.
+          emailRedirectTo: `${window.location.origin}/login?email_confirmed=1`,
+        },
       });
       if (error) throw error;
 
       if (data.session) {
-        // Email confirmation is off for this project — session issued immediately.
+        // Email confirmation is disabled in the Supabase project.
         window.location.href = '/';
         return;
       }
-      // Email confirmation is on — no session yet, tell them to check their inbox.
+
       authStatus.hidden = false;
       authStatus.className = 'auth-status';
-      authStatus.textContent = `Check ${email} to confirm your account, then sign in.`;
+      authStatus.textContent = `Check ${email} for a confirmation link. After confirming your email, you'll return here to sign in.`;
       setAuthMode('signin');
+      // setAuthMode hides the status message, so restore the sign-up guidance.
+      authStatus.hidden = false;
+      authStatus.className = 'auth-status';
+      authStatus.textContent = `Check ${email} for a confirmation link. After confirming your email, you'll return here to sign in.`;
     } else {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -83,11 +124,6 @@ authForm.addEventListener('submit', async (e) => {
       return;
     }
   } catch (err) {
-    // Full error object to the console — err.message alone (what was shown
-    // before) is often just "Failed to fetch", which tells you nothing.
-    // Nothing about this call goes through our backend, so this console
-    // log is the only place the real cause shows up — check it here, not
-    // the server terminal.
     console.error(`[Pharma RAG] ${authMode} failed:`, err);
     authStatus.hidden = false;
     authStatus.className = 'auth-status is-error';
@@ -99,10 +135,6 @@ authForm.addEventListener('submit', async (e) => {
 });
 
 function describeAuthError(err) {
-  // The Fetch API throws a plain TypeError with exactly this message when
-  // the request never reaches a server at all — DNS failure, connection
-  // refused, CORS block, offline. That's a config/network problem, not a
-  // rejected sign-in, so it gets a different, more actionable message.
   if (err instanceof TypeError && /fetch/i.test(err.message)) {
     return "Couldn't reach the authentication server. Check your internet connection and open the browser console for details — SUPABASE_URL in your .env is the most common cause.";
   }
