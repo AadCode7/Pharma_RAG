@@ -218,7 +218,12 @@ def tfidf_chunks(query: str, caller_id: str, match_count: int) -> list[dict]:
         str(row["chunk_id"]): _sparse_cosine(vector, query_vector)
         for row, vector in zip(corpus, vectors)
     }
-    ranked = _normalise_scores(corpus, scores)
+    ranked = []
+    for row in corpus:
+        item = dict(row)
+        item["similarity"] = max(0.0, min(1.0, scores.get(str(row["chunk_id"]), 0.0)))
+        ranked.append(item)
+    ranked.sort(key=lambda item: item["similarity"], reverse=True)
     return [row for row in ranked if row["similarity"] > 0][:match_count]
 
 
@@ -288,7 +293,8 @@ def mmr_chunks(
     output = []
     for index in selected:
         row = dict(candidates[index])
-        # Keep the relevance score in [0, 1] for the existing source UI.
-        row["similarity"] = relevance[index]
+        # Preserve the original dense similarity for source display; the
+        # min-max normalized relevance is used only for MMR selection.
+        row["similarity"] = dense_scores[index]
         output.append(row)
     return output
