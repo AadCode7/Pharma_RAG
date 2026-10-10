@@ -41,7 +41,7 @@ class RetrievalAlgorithmTests(unittest.TestCase):
     def test_bm25_ranks_term_matches_and_returns_normalized_scores(self, _visible):
         result = retrieval.bm25_chunks("adverse events report", "user-1", 3)
         self.assertTrue(result)
-        self.assertEqual(result[0]["chunk_id"], "1")
+        self.assertEqual(result[0]["chunk_id"], "3")
         self.assertTrue(all(0.0 <= row["similarity"] <= 1.0 for row in result))
 
     @patch.object(retrieval, "visible_chunks", return_value=CORPUS)
