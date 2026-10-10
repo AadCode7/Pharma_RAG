@@ -60,7 +60,7 @@ async def list_documents(request: Request):
                 **version,
                 "chunking_strategy": "fixed_size_v1",
                 "embedding_strategy": "bge_small",
-                "embedding_model": "BAAI/bge-small-en-v1.5",
+                "embedding_model": "embed-english-light-v3.0",
             }
             for version in (legacy_result.data or [])
         ]
