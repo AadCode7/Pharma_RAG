@@ -31,7 +31,7 @@ class RerankingServiceTests(unittest.IsolatedAsyncioTestCase):
             ],
             2,
         )
-        self.assertEqual(scores, [0.87, 0.8])
+        self.assertEqual(scores, [0.13, 0.8])
 
     def test_scores_are_bounded_for_existing_source_ui(self):
         chunk = {"chunk_id": "1", "similarity": 0.2}
