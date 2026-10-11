@@ -14,6 +14,7 @@ from api.services.retrieval_service import (
     mmr_chunks,
     tfidf_chunks,
 )
+from api.services.reranking_service import rerank_chunks
 from api.services.tracing_service import log_trace
 from config.settings import settings
 from config.strategies import get_strategy
@@ -72,31 +73,38 @@ async def run_query(payload: QueryRequest, request: Request):
     t_retrieve = time.perf_counter()
     if strategy_id == "standard":
         candidates = match_chunks(query_embedding, candidate_count, user_id)
-        matches = diversify_chunks(candidates, payload.k, max_per_document=2)
     elif strategy_id == "bm25":
         candidates = bm25_chunks(payload.query, user_id, candidate_count)
-        matches = diversify_chunks(candidates, payload.k, max_per_document=2)
     elif strategy_id == "tfidf":
         candidates = tfidf_chunks(payload.query, user_id, candidate_count)
-        matches = diversify_chunks(candidates, payload.k, max_per_document=2)
     elif strategy_id == "hybrid":
         candidates = hybrid_chunks(
             payload.query, query_embedding, user_id, candidate_count, candidate_count
         )
-        matches = diversify_chunks(candidates, payload.k, max_per_document=2)
     elif strategy_id == "hyde":
         # The hypothetical passage is used only to find real, authorized chunks.
         candidates = match_chunks(query_embedding, candidate_count, user_id)
-        matches = diversify_chunks(candidates, payload.k, max_per_document=2)
     elif strategy_id == "mmr":
-        matches = mmr_chunks(
-            query_embedding, user_id, payload.k, candidate_count
+        candidates = mmr_chunks(
+            query_embedding, user_id, candidate_count, candidate_count
         )
     else:
         # Defensive guard if the registry and dispatcher ever drift apart.
         raise BadRequestError(f"Retrieval strategy '{strategy_id}' has no implementation.")
 
     latency["retrieval_ms"] = int((time.perf_counter() - t_retrieve) * 1000)
+
+    # Reranking is a second stage: it sees only the authorized candidates
+    # returned above and always runs before answer generation.
+    if reranking_config["id"] == "none":
+        matches = diversify_chunks(candidates, payload.k, max_per_document=2)
+    else:
+        t_rerank = time.perf_counter()
+        reranked = await rerank_chunks(
+            payload.query, candidates, reranking_config["id"], payload.k
+        )
+        latency["reranking_ms"] = int((time.perf_counter() - t_rerank) * 1000)
+        matches = diversify_chunks(reranked, payload.k, max_per_document=2)
 
     if not matches:
         latency["total_ms"] = int((time.perf_counter() - t0) * 1000)
