@@ -17,7 +17,7 @@ class RerankingServiceTests(unittest.IsolatedAsyncioTestCase):
         parsed = reranking._json_object('```json\n{"ranked_ids": [{"id": 1, "score": 0.8}]}\n```')
         self.assertEqual(parsed["ranked_ids"][0]["id"], 1)
 
-    def test_huggingface_cross_encoder_is_not_a_configured_strategy(self):
+    def test_removed_cross_encoder_is_not_configured(self):
         self.assertNotIn("cross_encoder", [s["id"] for s in STRATEGIES["reranking"]])
 
     def test_scores_are_bounded_for_existing_source_ui(self):
