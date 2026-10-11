@@ -5,7 +5,6 @@ The default 'none' path never imports or calls any external reranker.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from typing import Any
@@ -16,10 +15,6 @@ from config.settings import settings
 from exception.exceptions import BadRequestError, UpstreamServiceError
 
 COHERE_RERANK_URL = "https://api.cohere.com/v2/rerank"
-HF_RERANK_URL = (
-    "https://router.huggingface.co/hf-inference/models/"
-    "BAAI/bge-reranker-v2-m3"
-)
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 MAX_RERANK_CANDIDATES = 20
 MAX_DOCUMENT_CHARS = 6000
@@ -98,105 +93,6 @@ async def _cohere_rerank(
     except (KeyError, TypeError, ValueError, IndexError) as exc:
         raise UpstreamServiceError("Cohere Rerank returned an unexpected response.") from exc
 
-
-def _cross_encoder_scores(response_data: Any, expected_count: int) -> list[float]:
-    """Normalize common HF text-classification response shapes into scores."""
-    if not isinstance(response_data, list) or len(response_data) != expected_count:
-        raise ValueError("Unexpected Cross-Encoder response length")
-    scores: list[float] = []
-    for item in response_data:
-        # HF may return one {label, score} object or a list of class scores
-        # for each input pair. The highest class confidence is the stable
-        # scalar available through the hosted text-classification pipeline.
-        if isinstance(item, dict) and "score" in item:
-            score = float(item["score"])
-        elif isinstance(item, list) and item:
-            scored = [
-                entry for entry in item
-                if isinstance(entry, dict) and "score" in entry and "label" in entry
-            ]
-            if not scored:
-                raise ValueError("No class scores in Cross-Encoder response")
-            positive = [
-                entry for entry in scored
-                if any(
-                    marker in str(entry["label"]).lower()
-                    for marker in ("relevant", "positive", "label_1", "entailment")
-                )
-            ]
-            # Prefer an explicitly positive/relevant class where available;
-            # otherwise use the only score or the highest class confidence.
-            if positive:
-                score = max(float(entry["score"]) for entry in positive)
-            elif len(scored) == 1:
-                score = float(scored[0]["score"])
-            else:
-                score = max(float(entry["score"]) for entry in scored)
-        else:
-            raise ValueError("Unexpected Cross-Encoder score format")
-        scores.append(score)
-    return scores
-
-
-async def _cross_encoder_rerank(
-    query: str, candidates: list[dict[str, Any]], top_n: int
-) -> list[dict[str, Any]]:
-    if not settings.hf_api_token:
-        raise BadRequestError(
-            "Cross-Encoder reranking requires HF_API_TOKEN. Add a Hugging Face access token "
-            "with Inference Providers access to the backend environment."
-        )
-    semaphore = asyncio.Semaphore(3)
-
-    async def score_pair(client: httpx.AsyncClient, chunk: dict[str, Any]) -> float:
-        # Hugging Face's text-pair classification schema accepts one query /
-        # passage pair per request. Keep concurrency bounded for free-tier APIs.
-        async with semaphore:
-            try:
-                response = await client.post(
-                    HF_RERANK_URL,
-                    headers={
-                        "Authorization": f"Bearer {settings.hf_api_token}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "inputs": {
-                            "text": query,
-                            "text_pair": str(chunk.get("content") or "")[:MAX_DOCUMENT_CHARS],
-                        },
-                        "options": {"wait_for_model": True},
-                    },
-                )
-            except httpx.RequestError as exc:
-                raise UpstreamServiceError(
-                    "Hugging Face Cross-Encoder could not be reached."
-                ) from exc
-
-            if response.status_code != 200:
-                raise UpstreamServiceError(
-                    f"Hugging Face Cross-Encoder failed ({response.status_code}): "
-                    f"{response.text[:300]}"
-                )
-            try:
-                # Pair classification commonly returns a list of label/score
-                # objects. Wrap it as one batch item for the common parser.
-                return _cross_encoder_scores([response.json()], 1)[0]
-            except (ValueError, TypeError, KeyError) as exc:
-                raise UpstreamServiceError(
-                    "Hugging Face Cross-Encoder returned an unexpected response format."
-                ) from exc
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        scores = await asyncio.gather(
-            *(score_pair(client, chunk) for chunk in candidates)
-        )
-
-    ranked = [
-        _with_score(chunk, score)
-        for chunk, score in zip(candidates, scores)
-    ]
-    ranked.sort(key=lambda chunk: chunk["similarity"], reverse=True)
-    return ranked[:top_n]
 
 async def _llm_rerank(
     query: str, candidates: list[dict[str, Any]], top_n: int
@@ -294,8 +190,6 @@ async def rerank_chunks(
     bounded = candidates[:MAX_RERANK_CANDIDATES]
     if strategy_id == "cohere_rerank":
         return await _cohere_rerank(query, bounded, top_n)
-    if strategy_id == "cross_encoder":
-        return await _cross_encoder_rerank(query, bounded, top_n)
     if strategy_id == "llm_reranker":
         return await _llm_rerank(query, bounded, top_n)
     if strategy_id == "none":
