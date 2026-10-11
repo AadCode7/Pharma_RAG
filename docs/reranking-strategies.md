@@ -9,7 +9,7 @@ their order and returns the best candidates to the existing answer generator.
 - **No Reranking** (default): keeps the existing retrieval order. It makes no
   reranker API calls and requires no additional configuration.
 - **Cross-Encoder**: sends query/passage pairs to the hosted
-  `cross-encoder/ms-marco-MiniLM-L-6-v2` model through Hugging Face Inference.
+  `BAAI/bge-reranker-v2-m3` model through Hugging Face Inference.
 - **Cohere Rerank**: uses Cohere's `/v2/rerank` endpoint and the
   `rerank-v4.0-fast` model.
 - **LLM Reranker (Groq)**: asks the configured Groq chat model to rank a bounded
