@@ -17,7 +17,7 @@ from exception.exceptions import BadRequestError, UpstreamServiceError
 COHERE_RERANK_URL = "https://api.cohere.com/v2/rerank"
 HF_RERANK_URL = (
     "https://router.huggingface.co/hf-inference/models/"
-    "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    "BAAI/bge-reranker-v2-m3"
 )
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 MAX_RERANK_CANDIDATES = 20
