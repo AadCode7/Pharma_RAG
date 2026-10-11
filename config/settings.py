@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     # Optional at startup so the login page and public routes remain available
     # while deployment secrets are being configured. Embedding calls validate it.
     cohere_api_key: str = ""
+    # Optional token for hosted Cross-Encoder inference. It is not required
+    # for the default query path or the Cohere/LLM rerankers.
+    hf_api_token: str = ""
     embedding_model: str = "embed-english-light-v3.0"
     embedding_dim: int = 384  # Cohere embed-english-light-v3.0 returns 384 dimensions
 
