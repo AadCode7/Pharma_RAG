@@ -17,8 +17,10 @@ class RerankingServiceTests(unittest.IsolatedAsyncioTestCase):
         parsed = reranking._json_object('```json\n{"ranked_ids": [{"id": 1, "score": 0.8}]}\n```')
         self.assertEqual(parsed["ranked_ids"][0]["id"], 1)
 
-    def test_removed_cross_encoder_is_not_configured(self):
-        self.assertNotIn("cross_encoder", [s["id"] for s in STRATEGIES["reranking"]])
+    def test_cohere_cross_encoder_style_reranking_is_configured(self):
+        cohere = next(s for s in STRATEGIES["reranking"] if s["id"] == "cohere_rerank")
+        self.assertIn("Cross-Encoder", cohere["label"])
+        self.assertTrue(cohere["implemented"])
 
     def test_scores_are_bounded_for_existing_source_ui(self):
         chunk = {"chunk_id": "1", "similarity": 0.2}
