@@ -5,6 +5,7 @@ The default 'none' path never imports or calls any external reranker.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any
@@ -145,33 +146,50 @@ async def _cross_encoder_rerank(
             "Cross-Encoder reranking requires HF_API_TOKEN. Add a Hugging Face access token "
             "with Inference Providers access to the backend environment."
         )
-    inputs = [
-        {"text": query, "text_pair": str(chunk.get("content") or "")[:MAX_DOCUMENT_CHARS]}
-        for chunk in candidates
-    ]
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                HF_RERANK_URL,
-                headers={
-                    "Authorization": f"Bearer {settings.hf_api_token}",
-                    "Content-Type": "application/json",
-                },
-                json={"inputs": inputs, "options": {"wait_for_model": True}},
-            )
-    except httpx.RequestError as exc:
-        raise UpstreamServiceError("Hugging Face Cross-Encoder could not be reached.") from exc
+    semaphore = asyncio.Semaphore(3)
 
-    if response.status_code != 200:
-        raise UpstreamServiceError(
-            f"Hugging Face Cross-Encoder failed ({response.status_code}): {response.text[:300]}"
+    async def score_pair(client: httpx.AsyncClient, chunk: dict[str, Any]) -> float:
+        # Hugging Face's text-pair classification schema accepts one query /
+        # passage pair per request. Keep concurrency bounded for free-tier APIs.
+        async with semaphore:
+            try:
+                response = await client.post(
+                    HF_RERANK_URL,
+                    headers={
+                        "Authorization": f"Bearer {settings.hf_api_token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "inputs": {
+                            "text": query,
+                            "text_pair": str(chunk.get("content") or "")[:MAX_DOCUMENT_CHARS],
+                        },
+                        "options": {"wait_for_model": True},
+                    },
+                )
+            except httpx.RequestError as exc:
+                raise UpstreamServiceError(
+                    "Hugging Face Cross-Encoder could not be reached."
+                ) from exc
+
+            if response.status_code != 200:
+                raise UpstreamServiceError(
+                    f"Hugging Face Cross-Encoder failed ({response.status_code}): "
+                    f"{response.text[:300]}"
+                )
+            try:
+                # Pair classification commonly returns a list of label/score
+                # objects. Wrap it as one batch item for the common parser.
+                return _cross_encoder_scores([response.json()], 1)[0]
+            except (ValueError, TypeError, KeyError) as exc:
+                raise UpstreamServiceError(
+                    "Hugging Face Cross-Encoder returned an unexpected response format."
+                ) from exc
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        scores = await asyncio.gather(
+            *(score_pair(client, chunk) for chunk in candidates)
         )
-    try:
-        scores = _cross_encoder_scores(response.json(), len(candidates))
-    except (ValueError, TypeError, KeyError) as exc:
-        raise UpstreamServiceError(
-            "Hugging Face Cross-Encoder returned an unexpected response format."
-        ) from exc
 
     ranked = [
         _with_score(chunk, score)
@@ -179,7 +197,6 @@ async def _cross_encoder_rerank(
     ]
     ranked.sort(key=lambda chunk: chunk["similarity"], reverse=True)
     return ranked[:top_n]
-
 
 async def _llm_rerank(
     query: str, candidates: list[dict[str, Any]], top_n: int
