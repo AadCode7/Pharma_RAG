@@ -8,9 +8,11 @@ their order and returns the best candidates to the existing answer generator.
 
 - **No Reranking** (default): keeps the existing retrieval order. It makes no
   reranker API calls and requires no additional configuration.
-- **Cohere Rerank**: uses Cohere's `/v2/rerank` endpoint and the
-  `rerank-v4.0-fast` model. Cohere trial API keys are free but rate-limited and
-  intended for evaluation, not production or commercial use.
+- **Cohere Rerank (Cross-Encoder)**: uses Cohere's hosted `/v2/rerank`
+  endpoint with `rerank-v4.0-fast`. The model jointly scores the query and each
+  candidate passage, then returns the passages ordered by relevance. This is
+  the cross-encoder-style option; it does not run a local Hugging Face inference
+  model. Check Cohere's current API plan and rate limits before use.
 - **LLM Reranker (Groq)**: asks the configured Groq chat model to rank a bounded
   list of passages and return JSON scores.
 
