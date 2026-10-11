@@ -110,7 +110,27 @@ def _cross_encoder_scores(response_data: Any, expected_count: int) -> list[float
         if isinstance(item, dict) and "score" in item:
             score = float(item["score"])
         elif isinstance(item, list) and item:
-            score = max(float(entry["score"]) for entry in item if "score" in entry)
+            scored = [
+                entry for entry in item
+                if isinstance(entry, dict) and "score" in entry and "label" in entry
+            ]
+            if not scored:
+                raise ValueError("No class scores in Cross-Encoder response")
+            positive = [
+                entry for entry in scored
+                if any(
+                    marker in str(entry["label"]).lower()
+                    for marker in ("relevant", "positive", "label_1", "entailment")
+                )
+            ]
+            # Prefer an explicitly positive/relevant class where available;
+            # otherwise use the only score or the highest class confidence.
+            if positive:
+                score = max(float(entry["score"]) for entry in positive)
+            elif len(scored) == 1:
+                score = float(scored[0]["score"])
+            else:
+                score = max(float(entry["score"]) for entry in scored)
         else:
             raise ValueError("Unexpected Cross-Encoder score format")
         scores.append(score)
