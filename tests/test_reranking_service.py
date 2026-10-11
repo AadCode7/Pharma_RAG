@@ -9,6 +9,7 @@ os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("COHERE_API_KEY", "test-cohere-key")
 
 from api.services import reranking_service as reranking
+from config.strategies import STRATEGIES
 
 
 class RerankingServiceTests(unittest.IsolatedAsyncioTestCase):
@@ -16,22 +17,8 @@ class RerankingServiceTests(unittest.IsolatedAsyncioTestCase):
         parsed = reranking._json_object('```json\n{"ranked_ids": [{"id": 1, "score": 0.8}]}\n```')
         self.assertEqual(parsed["ranked_ids"][0]["id"], 1)
 
-    def test_cross_encoder_parser_accepts_single_score_per_pair(self):
-        scores = reranking._cross_encoder_scores(
-            [{"label": "LABEL_0", "score": 0.91}, {"label": "LABEL_0", "score": 0.12}],
-            2,
-        )
-        self.assertEqual(scores, [0.91, 0.12])
-
-    def test_cross_encoder_parser_accepts_class_score_lists(self):
-        scores = reranking._cross_encoder_scores(
-            [
-                [{"label": "LABEL_0", "score": 0.87}, {"label": "LABEL_1", "score": 0.13}],
-                [{"label": "LABEL_0", "score": 0.2}, {"label": "LABEL_1", "score": 0.8}],
-            ],
-            2,
-        )
-        self.assertEqual(scores, [0.13, 0.8])
+    def test_huggingface_cross_encoder_is_not_a_configured_strategy(self):
+        self.assertNotIn("cross_encoder", [s["id"] for s in STRATEGIES["reranking"]])
 
     def test_scores_are_bounded_for_existing_source_ui(self):
         chunk = {"chunk_id": "1", "similarity": 0.2}
@@ -44,10 +31,6 @@ class RerankingServiceTests(unittest.IsolatedAsyncioTestCase):
             await reranking.rerank_chunks("question", [], "cohere_rerank", 5),
             [],
         )
-
-    def test_invalid_cross_encoder_response_is_rejected(self):
-        with self.assertRaises(ValueError):
-            reranking._cross_encoder_scores({"error": "bad response"}, 1)
 
 
 if __name__ == "__main__":
