@@ -16,9 +16,16 @@ their order and returns the best candidates to the existing answer generator.
   list of passages and return JSON scores.
 
 Reranking is bounded to the first 20 candidates returned by the retrieval
-strategy to keep API cost and latency predictable. The user-facing answer is
-still generated from the original question and retrieved document chunks, not
-from any generated reranking text.
+strategy to keep API cost and latency predictable. The Cross-Encoder uses
+bounded concurrent query/passage requests; Cohere and Groq receive a single
+request containing the candidate passages. The user-facing answer is still
+generated from the original question and retrieved document chunks, not from
+any generated reranking text.
+
+**Data handling:** when one of these hosted rerankers is selected, the query and
+retrieved passage text are sent to that provider. Confirm that this is allowed
+by your organization's pharmaceutical-data and vendor policies before enabling
+a hosted reranker for confidential documents.
 
 ## Environment variables
 
