@@ -137,8 +137,8 @@ STRATEGIES = {
         },
         {
             "id": "cohere_rerank",
-            "label": "Cohere Rerank",
-            "description": "Use Cohere Rerank to score and reorder passages; trial API keys are free with usage limits.",
+            "label": "Cohere Rerank (Cross-Encoder)",
+            "description": "Use Cohere\u2019s hosted reranking model to jointly score each query-passage pair and reorder passages by relevance; API usage limits apply.",
             "implemented": True,
             "default": False,
         },
