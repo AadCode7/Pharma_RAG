@@ -92,9 +92,13 @@ async function handleSubmit(e) {
       documents.forEach((doc) => {
         const li = document.createElement('li');
         li.className = 'source-doc-item';
+        const graphUsed = (result.graphContext || []).some((relation) =>
+          (relation.document_id && doc.documentId && String(relation.document_id) === String(doc.documentId)) ||
+          (relation.document_title && doc.documentTitle && relation.document_title === doc.documentTitle)
+        );
         const chunkNote = doc.chunkCount > 1 ? `${doc.chunkCount} sections used` : '1 section used';
         li.innerHTML = `
-          <span class="source-doc-title">${escapeHtml(doc.documentTitle)}</span>
+          <span class="source-doc-title">${escapeHtml(doc.documentTitle)}${graphUsed ? ' <span class="graph-document-badge">Graph</span>' : ''}</span>
           <span class="source-doc-meta">${chunkNote} · ${(doc.bestSimilarity * 100).toFixed(0)}% match</span>
         `;
         docsList.appendChild(li);
@@ -123,6 +127,7 @@ function dedupeDocumentsFromChunks(chunks) {
     if (!existing) {
       byDoc.set(chunk.document_id, {
         documentTitle: chunk.document_title,
+        documentId: chunk.document_id,
         bestSimilarity: similarity,
         chunkCount: 1,
       });
