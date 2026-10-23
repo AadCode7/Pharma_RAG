@@ -6,7 +6,7 @@ class QueryRequest(BaseModel):
 
     query: str = Field(..., min_length=1)
     k: int = Field(default=5, ge=1, le=20)
-    retrieval_strategy: str = Field(default="standard", alias="retrievalStrategy")
+    retrieval_strategy: str = Field(default="graphrag_hybrid", alias="retrievalStrategy")
     reranking_strategy: str = Field(default="none", alias="rerankingStrategy")
 
 
