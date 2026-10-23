@@ -101,6 +101,7 @@ async function handleSubmit(e) {
       });
     }
 
+    renderGraphContext(result.graphContext || []);
     document.getElementById('view-trace-link').href = `/trace?requestId=${result.requestId}`;
     document.getElementById('query-result').hidden = false;
   } catch (err) {
@@ -130,4 +131,32 @@ function dedupeDocumentsFromChunks(chunks) {
     existing.bestSimilarity = Math.max(existing.bestSimilarity, similarity);
   });
   return Array.from(byDoc.values()).sort((a, b) => b.bestSimilarity - a.bestSimilarity);
+}
+
+
+function renderGraphContext(relations) {
+  const panel = document.getElementById('graph-context-panel');
+  const list = document.getElementById('graph-context-list');
+  if (!panel || !list) return;
+
+  list.replaceChildren();
+  const visible = Array.isArray(relations) ? relations.slice(0, 12) : [];
+  panel.hidden = visible.length === 0;
+  visible.forEach((relation) => {
+    const item = document.createElement('li');
+    item.className = 'graph-context-item';
+
+    const triple = document.createElement('p');
+    triple.className = 'graph-triple';
+    triple.textContent = `${relation.subject || 'Unknown entity'} → ${relation.predicate || 'related to'} → ${relation.object || 'Unknown entity'}`;
+
+    const source = document.createElement('p');
+    source.className = 'graph-context-source';
+    source.textContent = relation.document_title
+      ? `Evidence: ${relation.document_title}`
+      : 'Evidence: retrieved source passage';
+
+    item.append(triple, source);
+    list.appendChild(item);
+  });
 }
