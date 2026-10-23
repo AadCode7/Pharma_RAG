@@ -43,20 +43,20 @@ async function loadUploadStrategies() {
   uploadStrategies.chunking = strategies.chunking || [];
   uploadStrategies.embedding = strategies.embedding || [];
 
-  populateStrategySelect(document.getElementById('chunking-strategy'), uploadStrategies.chunking);
-  populateStrategySelect(document.getElementById('embedding-strategy'), uploadStrategies.embedding);
+  populateStrategySelect(document.getElementById('chunking-strategy'), uploadStrategies.chunking, 'coming next');
+  populateStrategySelect(document.getElementById('embedding-strategy'), uploadStrategies.embedding, 'not available');
 
   document.getElementById('chunking-strategy').addEventListener('change', updateSelectedUploadConfig);
   document.getElementById('embedding-strategy').addEventListener('change', updateSelectedUploadConfig);
   updateUploadStrategyStatus();
 }
 
-function populateStrategySelect(select, strategies) {
+function populateStrategySelect(select, strategies, unavailableSuffix = 'coming next') {
   select.innerHTML = '';
   strategies.forEach((strategy) => {
     const option = document.createElement('option');
     option.value = strategy.id;
-    option.textContent = strategy.implemented ? strategy.label : `${strategy.label} — coming next`;
+    option.textContent = strategy.implemented ? strategy.label : `${strategy.label} — ${unavailableSuffix}`;
     option.dataset.implemented = strategy.implemented ? 'true' : 'false';
     option.dataset.description = strategy.description || '';
     select.appendChild(option);
@@ -81,7 +81,7 @@ function updateUploadStrategyStatus() {
 
   if (unavailable.length === 0) {
     status.className = 'strategy-status';
-    status.textContent = `Executable configuration: ${chunking.textContent.replace(' — coming next', '')} chunking with ${embedding.textContent.replace(' — coming next', '')} embeddings.`;
+    status.textContent = `Executable configuration: ${chunking.textContent.replace(/ — (coming next|not available)$/, '')} chunking with ${embedding.textContent.replace(/ — (coming next|not available)$/, '')} embeddings.`;
   } else {
     status.className = 'strategy-status is-warning';
     status.textContent = 'The selected strategy is visible here so its configuration contract is ready, but its implementation will be added in a later milestone.';
