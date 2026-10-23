@@ -89,7 +89,7 @@ STRATEGIES = {
             "label": "Dense Retrieval (Semantic)",
             "description": "Ranks authorized chunks by cosine similarity of query and document embeddings.",
             "implemented": True,
-            "default": True,
+            "default": False,
         },
         {
             "id": "bm25",
@@ -135,10 +135,10 @@ STRATEGIES = {
         },
         {
             "id": "graphrag_hybrid",
-            "label": "GraphRAG + Hybrid Vector Search",
-            "description": "Fuses graph-traversal results with dense semantic and BM25 retrieval using Reciprocal Rank Fusion.",
+            "label": "GraphRAG + Hybrid Vector Search (Recommended)",
+            "description": "Recommended: combines graph relationships with dense semantic and BM25 retrieval, so missing graph edges do not block relevant source passages.",
             "implemented": True,
-            "default": False,
+            "default": True,
         },
     ],
     "reranking": [
