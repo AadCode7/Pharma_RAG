@@ -200,3 +200,11 @@ Same sandbox network limitation as before — no access to huggingface.co, groq.
 4. Run `python -m unittest discover -s tests`, then smoke-test an upload and a query using each of the two new strategies.
 
 **Not yet verified:** no runtime environment with the repository dependencies and live Supabase/Groq/Cohere credentials was available during the GitHub edits. The new unit tests have been committed but have not been executed here; treat the feature as implemented but pending runtime verification. Graph indexing is synchronous and adds model requests during upload, so long documents may require an environment with adequate request timeouts.
+
+
+### GraphRAG refinements
+
+- The query RPC now accepts the query text and returns a query-relevant subgraph from the caller's authorized graph edges, expanding to nearby nodes in SQL before returning the bounded result.
+- Graph entity matching uses normalized word boundaries to avoid substring false positives.
+- Graph triples that correspond to final answer-context chunks are included in the answer prompt as untrusted retrieval hints, each mapped to its numbered source passage. The source passage remains authoritative and provides the citation target.
+- Added offline prompt tests for source-block mapping and omission of unsupported relationships. Tests still need execution in a Python environment with the project dependencies.
