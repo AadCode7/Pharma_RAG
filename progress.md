@@ -208,3 +208,14 @@ Same sandbox network limitation as before — no access to huggingface.co, groq.
 - Graph entity matching uses normalized word boundaries to avoid substring false positives.
 - Graph triples that correspond to final answer-context chunks are included in the answer prompt as untrusted retrieval hints, each mapped to its numbered source passage. The source passage remains authoritative and provides the citation target.
 - Added offline prompt tests for source-block mapping and omission of unsupported relationships. Tests still need execution in a Python environment with the project dependencies.
+
+
+### GraphRAG quality and token-efficiency pass (2026-10-23)
+
+- Graph extraction now deduplicates identical Parent/Child parent passages and indexes the larger context instead of repeatedly truncating each child to 1,500 characters. Long contexts are split into bounded overlapping windows; every edge remains attached to a real chunk ID, and the graph retrieval RPC returns parent context for Parent/Child evidence.
+- Extraction asks for concise triples with an exact source quote. Validation checks both endpoints and the evidence quote against the source context before persistence.
+- Added conservative, deterministic relation patterns for explicit statements. When these recover at least three relationships for a unit, the LLM call is skipped for that unit; when Groq is temporarily rate-limited, validated local results can still be indexed rather than failing the whole graph job.
+- Added a Supabase extraction cache keyed by source-context SHA-256, model and prompt version. Unchanged text can reuse previous extraction results. Cache failures are logged and do not block graph indexing.
+- Added migration `database/migrations/0005_graph_rag_quality.sql`. Apply it after `0004_graph_rag.sql` to create the cache table and update the permission-scoped graph RPC to return Parent/Child parent context.
+- Changed the query strategy selector default to **GraphRAG + Hybrid Vector Search (Recommended)**. Dense/BM25 retrieval remains fused with graph candidates, so missing graph edges do not prevent source chunks from being retrieved.
+- Added offline tests for parent-context deduplication, explicit local relation extraction, and evidence-quote validation. These tests have not been run in this editing environment; deploy and run the full test suite before relying on production behavior.
