@@ -133,7 +133,7 @@ This branch adds two selectable query strategies:
 1. Apply `database/migrations/0004_graph_rag.sql` in Supabase SQL Editor.
 2. Set `GROQ_API_KEY` and `COHERE_API_KEY` in the backend environment. Groq is used for graph extraction; Cohere remains the embedding provider.
 3. Deploy this branch. In Knowledge Base, keep **Build knowledge graph during upload** checked when publishing or republishing a document version. The upload response reports graph indexing status and relationship counts.
-4. Ask a question on the Query page and select either graph strategy. The response shows the graph relationships tied to the source chunks actually passed to answer generation.
+4. Ask a question on the Query page and select either graph strategy. The response shows the graph relationships tied to the source chunks actually passed to answer generation. Those triples are also sent as untrusted retrieval hints in the answer prompt, mapped to the numbered source block that supports each relationship; source passages remain the evidence used for factual claims.
 
 Existing documents are not backfilled automatically. Republish each version that should become available to GraphRAG. If graph extraction fails, the successfully published vector index remains available and the manager UI reports the failure; check backend logs and republish to retry. Graph extraction adds Groq calls and can increase upload latency, especially for long documents.
 
