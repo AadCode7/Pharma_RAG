@@ -4,6 +4,7 @@ import uuid
 from fastapi import APIRouter, Request
 
 from api.services.embedding_service import embed_texts
+from api.services.graph_service import fuse_rankings_rrf, retrieve_graph_candidates
 from api.services.llm_service import generate_answer, generate_hypothetical_document
 from api.services.rbac_service import require_user
 from api.services.retrieval_service import (
@@ -52,9 +53,13 @@ async def run_query(payload: QueryRequest, request: Request):
     strategy_id = retrieval_config["id"]
     query_embedding = None
     hypothetical_document = None
+    graph_context: list[dict] = []
+    graph_stats: dict = {}
 
-    # Lexical-only strategies do not make an unnecessary embedding API call.
-    if strategy_id in {"standard", "hybrid", "hyde", "mmr"}:
+    # GraphRAG-only uses entity linking and graph traversal without a query
+    # embedding. GraphRAG hybrid additionally runs the existing dense + BM25
+    # retriever, then fuses that ranking with graph-derived passages.
+    if strategy_id in {"standard", "hybrid", "hyde", "mmr", "graphrag_hybrid"}:
         embedding_text = payload.query
         if strategy_id == "hyde":
             t_hyde = time.perf_counter()
@@ -68,8 +73,6 @@ async def run_query(payload: QueryRequest, request: Request):
         )
         latency["embedding_ms"] = int((time.perf_counter() - t_embed) * 1000)
 
-    # Each retrieval implementation returns the same source-chunk shape used by
-    # the existing answer generator and UI. Authorization is enforced in SQL.
     t_retrieve = time.perf_counter()
     if strategy_id == "standard":
         candidates = match_chunks(query_embedding, candidate_count, user_id)
@@ -82,20 +85,34 @@ async def run_query(payload: QueryRequest, request: Request):
             payload.query, query_embedding, user_id, candidate_count, candidate_count
         )
     elif strategy_id == "hyde":
-        # The hypothetical passage is used only to find real, authorized chunks.
+        # A hypothetical passage helps find real, authorized chunks only.
         candidates = match_chunks(query_embedding, candidate_count, user_id)
     elif strategy_id == "mmr":
         candidates = mmr_chunks(
             query_embedding, user_id, candidate_count, candidate_count
         )
+    elif strategy_id == "graphrag":
+        candidates, graph_context, graph_stats = retrieve_graph_candidates(
+            payload.query, user_id, candidate_count
+        )
+    elif strategy_id == "graphrag_hybrid":
+        graph_candidates, graph_context, graph_stats = retrieve_graph_candidates(
+            payload.query, user_id, candidate_count
+        )
+        vector_candidates = hybrid_chunks(
+            payload.query, query_embedding, user_id, candidate_count, candidate_count
+        )
+        candidates = fuse_rankings_rrf(
+            [graph_candidates, vector_candidates], candidate_count
+        )
+        graph_stats["vector_candidates"] = len(vector_candidates)
     else:
-        # Defensive guard if the registry and dispatcher ever drift apart.
         raise BadRequestError(f"Retrieval strategy '{strategy_id}' has no implementation.")
 
     latency["retrieval_ms"] = int((time.perf_counter() - t_retrieve) * 1000)
 
-    # Reranking is a second stage: it sees only the authorized candidates
-    # returned above and always runs before answer generation.
+    # Reranking sees only permission-checked candidates from the selected
+    # retrieval path and runs before generation.
     if reranking_config["id"] == "none":
         matches = diversify_chunks(candidates, payload.k, max_per_document=2)
     else:
@@ -106,13 +123,29 @@ async def run_query(payload: QueryRequest, request: Request):
         latency["reranking_ms"] = int((time.perf_counter() - t_rerank) * 1000)
         matches = diversify_chunks(reranked, payload.k, max_per_document=2)
 
+    # Show graph edges only when the supporting source chunk is actually used
+    # in the final answer context.
+    matched_ids = {str(row.get("chunk_id")) for row in matches}
+    graph_context = [
+        row for row in graph_context if str(row.get("chunk_id")) in matched_ids
+    ][:12]
+
     if not matches:
         latency["total_ms"] = int((time.perf_counter() - t0) * 1000)
+        if strategy_id == "graphrag":
+            answer = (
+                "No matching graph relationships or visible source passages were found. "
+                "A manager can republish documents with graph indexing enabled, then retry."
+            )
+        else:
+            answer = "I don't have any documents visible to you that address this question."
         trace_data = {
             "chunking_strategy": "document_version_metadata",
             "retrieval_strategy": strategy_id,
             "reranking_strategy": reranking_config["id"],
             "retrieved_chunks": [],
+            "graph_context": graph_context,
+            "graph_stats": graph_stats,
             "note": "no matches found or visible to this user",
         }
         if hypothetical_document:
@@ -120,14 +153,16 @@ async def run_query(payload: QueryRequest, request: Request):
         log_trace(request_id, user_id, payload.query, trace_data, latency)
         return {
             "requestId": request_id,
-            "answer": "I don't have any documents visible to you that address this question.",
+            "answer": answer,
             "sources": [],
             "sourceDocuments": [],
+            "graphContext": graph_context,
+            "graphStats": graph_stats,
             "latency": latency,
         }
 
-    # Always generate the user-facing answer from the original question and
-    # retrieved source chunks, never from the HyDE hypothetical passage.
+    # Always generate from the original question and actual source chunks, not
+    # from a HyDE passage or free-form graph extraction output.
     t_gen = time.perf_counter()
     generation = await generate_answer(payload.query, matches)
     latency["generation_ms"] = int((time.perf_counter() - t_gen) * 1000)
@@ -149,6 +184,9 @@ async def run_query(payload: QueryRequest, request: Request):
     }
     if hypothetical_document:
         trace_data["hyde_passage"] = hypothetical_document
+    if strategy_id in {"graphrag", "graphrag_hybrid"}:
+        trace_data["graph_context"] = graph_context
+        trace_data["graph_stats"] = graph_stats
     log_trace(request_id, user_id, payload.query, trace_data, latency)
 
     return {
@@ -156,5 +194,7 @@ async def run_query(payload: QueryRequest, request: Request):
         "answer": generation["answer"],
         "sources": matches,
         "sourceDocuments": unique_source_documents(matches),
+        "graphContext": graph_context,
+        "graphStats": graph_stats,
         "latency": latency,
     }
