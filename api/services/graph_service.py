@@ -83,25 +83,30 @@ async def _extract_relationship_batch(batch: list[dict[str, Any]]) -> list[dict[
         "phrases and confidence 0 to 1. Do not output extra keys.\n\n"
         f"Passages JSON:\n{json.dumps(supplied, ensure_ascii=False)}"
     )
+    request_payload = {
+        "model": settings.groq_model,
+        "messages": [
+            {"role": "system", "content": "Extract conservative, evidence-grounded knowledge graph triples. Output valid JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.0,
+        "max_tokens": 2200,
+        # Suppress reasoning text to reduce output tokens and keep the response
+        # focused on the JSON payload.
+        "include_reasoning": False,
+        "response_format": {"type": "json_object"},
+    }
+    # Groq's GPT-OSS models support low reasoning effort; do not send this
+    # model-specific parameter to other models configured by deployment.
+    if settings.groq_model.startswith("openai/gpt-oss-"):
+        request_payload["reasoning_effort"] = "low"
+
     try:
         async with httpx.AsyncClient(timeout=40.0) as client:
             response = await client.post(
                 GROQ_CHAT_URL,
                 headers={"Authorization": f"Bearer {settings.groq_api_key}"},
-                json={
-                    "model": settings.groq_model,
-                    "messages": [
-                        {"role": "system", "content": "Extract conservative, evidence-grounded knowledge graph triples. Output valid JSON only."},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": 0.0,
-                    "max_tokens": 2200,
-                    # GPT-OSS supports include_reasoning (not reasoning_format);
-                    # disabling reasoning output keeps extraction responses lean.
-                    "include_reasoning": False,
-                    "reasoning_effort": "low",
-                    "response_format": {"type": "json_object"},
-                },
+                json=request_payload,
             )
     except httpx.RequestError as exc:
         raise UpstreamServiceError("Graph indexing could not reach the configured language model.") from exc
