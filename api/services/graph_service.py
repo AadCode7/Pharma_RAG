@@ -294,7 +294,7 @@ def _rank_graph_edges(
     for entity_id, name in names_by_id.items():
         normalized, entity_tokens = normalize_name(name), _tokens(name)
         if normalized and (
-            normalized in query_norm
+            (" " + normalized + " ") in (" " + query_norm + " ")
             or (entity_tokens and len(entity_tokens & query_tokens) / len(entity_tokens) >= 0.6)
         ):
             seeds.add(entity_id)
