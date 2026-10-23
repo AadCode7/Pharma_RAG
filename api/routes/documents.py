@@ -83,18 +83,19 @@ async def list_documents(request: Request):
     current_version_ids = [
         doc["current_version_id"] for doc in documents if doc.get("current_version_id")
     ]
-    graph_chunk_ids: set[str] = set()
+    graph_version_ids: set[str] = set()
     if current_version_ids:
         try:
             service = get_service_client()
             chunk_result = (
                 service.table("chunks")
-                .select("id")
+                .select("id, document_version_id")
                 .in_("document_version_id", current_version_ids)
                 .eq("is_active", True)
                 .execute()
             )
-            chunk_ids = [row["id"] for row in (chunk_result.data or [])]
+            chunk_rows = chunk_result.data or []
+            chunk_ids = [row["id"] for row in chunk_rows]
             if chunk_ids:
                 relationship_result = (
                     service.table("graph_relationships")
@@ -105,34 +106,21 @@ async def list_documents(request: Request):
                 graph_chunk_ids = {
                     str(row["chunk_id"]) for row in (relationship_result.data or [])
                 }
+                graph_version_ids = {
+                    str(row["document_version_id"])
+                    for row in chunk_rows
+                    if str(row["id"]) in graph_chunk_ids
+                }
         except Exception as exc:
             # Listing documents should remain available if graph tables have
             # not been migrated or graph metadata cannot be queried.
             logger.warning("Could not determine graph-indexed documents: %s", exc)
 
     for doc in documents:
-        current_version = next(
-            (
-                version for version in doc["document_versions"]
-                if version["id"] == doc.get("current_version_id")
-            ),
-            None,
+        doc["graph_indexed"] = bool(
+            doc.get("current_version_id")
+            and str(doc["current_version_id"]) in graph_version_ids
         )
-        doc_chunk_ids: set[str] = set()
-        if current_version and graph_chunk_ids:
-            try:
-                service = get_service_client()
-                current_chunks = (
-                    service.table("chunks")
-                    .select("id")
-                    .eq("document_version_id", current_version["id"])
-                    .eq("is_active", True)
-                    .execute()
-                )
-                doc_chunk_ids = {str(row["id"]) for row in (current_chunks.data or [])}
-            except Exception:
-                doc_chunk_ids = set()
-        doc["graph_indexed"] = bool(doc_chunk_ids.intersection(graph_chunk_ids))
 
     return {"documents": documents}
 
