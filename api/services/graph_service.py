@@ -426,7 +426,9 @@ async def index_document_graph(chunks: list[dict[str, Any]]) -> dict[str, int]:
     service = get_service_client()
     # Every graph edge must point to a real chunk row; Parent/Child units point
     # to one representative child and the SQL RPC returns its parent passage.
-    chunk_ids = list({str(unit["chunk_id"]) for unit in units})
+    chunk_ids = list({
+        str(chunk["id"]) for chunk in chunks if chunk.get("id")
+    })
     cache = _read_extraction_cache(service, units)
     extracted_by_hash: dict[str, list[dict[str, Any]]] = {}
     missing: list[dict[str, Any]] = []
@@ -502,6 +504,10 @@ async def index_document_graph(chunks: list[dict[str, Any]]) -> dict[str, int]:
             rebound = [dict(row, chunk_ref=int(unit["chunk_ref"])) for row in raw]
             all_valid.extend(_validate_extracted_relationships(rebound, [unit]))
 
+        # Replace stale graph edges from an earlier indexing attempt for these
+        # chunks, including edges attached to child chunks now grouped under one
+        # parent extraction unit.
+        service.table("graph_relationships").delete().in_("chunk_id", chunk_ids).execute()
         if not all_valid:
             return {"entities": 0, "relationships": 0}
 
