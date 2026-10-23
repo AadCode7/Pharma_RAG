@@ -31,7 +31,7 @@ utils/                             # pure helpers (chunking, hashing)
 ## 1. Supabase setup
 
 1. Create a project at supabase.com.
-2. In the Supabase SQL editor, apply migrations in order: `database/migrations/0001_initial_schema.sql`, then `database/migrations/0003_rag_strategy_configuration.sql`, then `database/migrations/0004_graph_rag.sql`. On an existing deployment, run only migrations that have not already been applied. GraphRAG requests will not work until `0004_graph_rag.sql` has completed successfully.
+2. In the Supabase SQL editor, apply migrations in order: `database/migrations/0001_initial_schema.sql`, then `database/migrations/0003_rag_strategy_configuration.sql`, then `database/migrations/0004_graph_rag.sql`, then `database/migrations/0005_graph_rag_quality.sql`. On an existing deployment, apply `0005_graph_rag_quality.sql` after 0004; it adds the graph extraction cache and updates Parent/Child graph evidence retrieval. GraphRAG requests require 0004, and the new cache/context improvements require 0005.
 3. In **Authentication → Providers**, enable Google (and Apple, if you have
    an Apple Developer account configured — it needs more setup than Google).
    Email OTP (magic link) is enabled by default, so you can test the whole
