@@ -52,8 +52,8 @@ async def generate_hypothetical_document(query: str) -> str:
     return passage
 
 
-async def generate_answer(query: str, context_chunks: list[dict]) -> dict:
-    user_prompt = build_user_prompt(query, context_chunks)
+async def generate_answer(\n    query: str,\n    context_chunks: list[dict],\n    graph_context: list[dict] | None = None,\n) -> dict:
+    user_prompt = build_user_prompt(query, context_chunks, graph_context)
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
