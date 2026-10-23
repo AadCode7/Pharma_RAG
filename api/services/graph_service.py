@@ -51,6 +51,12 @@ def _tokens(value: str) -> set[str]:
     }
 
 
+def _contains_normalized_phrase(phrase: str, text: str) -> bool:
+    normalized_phrase = normalize_name(phrase)
+    normalized_text = normalize_name(text)
+    return bool(normalized_phrase) and f" {normalized_phrase} " in f" {normalized_text} "
+
+
 def _parse_json_object(value: str) -> dict[str, Any]:
     cleaned = value.strip()
     fence = chr(96) * 3
@@ -387,8 +393,9 @@ def _validate_extracted_relationships(
         quote_norm = normalize_name(evidence_quote)
         if (
             not subject_norm or not object_norm
-            or subject_norm not in content_norm or object_norm not in content_norm
-            or not quote_norm or quote_norm not in content_norm
+            or not _contains_normalized_phrase(subject_norm, content_norm)
+            or not _contains_normalized_phrase(object_norm, content_norm)
+            or not quote_norm or not _contains_normalized_phrase(quote_norm, content_norm)
         ):
             continue
         key = (chunk_ref, subject_norm, subject_type, predicate, object_norm + "|" + object_type)
