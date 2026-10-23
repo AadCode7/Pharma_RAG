@@ -38,10 +38,11 @@ function renderDocumentsRail(documents) {
     const strategySummary = current
       ? `${formatStrategy(current.chunking_strategy)} · ${formatStrategy(current.embedding_strategy, current.embedding_model)}`
       : 'Strategy configuration unavailable';
+    const graphBadge = current && doc.graph_indexed ? '<span class="documents-rail-graph-badge">Graph</span>' : '';
 
     card.innerHTML = `
       <div class="documents-rail-card-head">
-        <h3>${escapeHtml(doc.title)}</h3>
+        <h3>${escapeHtml(doc.title)} ${graphBadge}</h3>
         <span class="documents-rail-status ${doc.status === 'active' ? 'is-active' : ''}">${escapeHtml(doc.status)}</span>
       </div>
       <p class="documents-rail-version">${escapeHtml(versionSummary)}</p>

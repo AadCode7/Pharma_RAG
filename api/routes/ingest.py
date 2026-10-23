@@ -20,6 +20,7 @@ async def ingest(payload: IngestRequest, request: Request):
         user_id=user_id,
         chunking_strategy=payload.chunking_strategy,
         embedding_strategy=payload.embedding_strategy,
+        index_graph=payload.index_graph,
     )
 
     return {
@@ -30,4 +31,8 @@ async def ingest(payload: IngestRequest, request: Request):
         "chunkingStrategy": result["chunking_strategy"],
         "embeddingStrategy": result["embedding_strategy"],
         "embeddingModel": result["embedding_model"],
+        "graphIndexingStatus": result["graph_indexing_status"],
+        "graphEntities": result["graph_entities"],
+        "graphRelationships": result["graph_relationships"],
+        "graphIndexingError": result.get("graph_indexing_error"),
     }

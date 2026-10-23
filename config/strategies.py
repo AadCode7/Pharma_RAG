@@ -89,7 +89,7 @@ STRATEGIES = {
             "label": "Dense Retrieval (Semantic)",
             "description": "Ranks authorized chunks by cosine similarity of query and document embeddings.",
             "implemented": True,
-            "default": True,
+            "default": False,
         },
         {
             "id": "bm25",
@@ -125,6 +125,20 @@ STRATEGIES = {
             "description": "Uses Maximal Marginal Relevance to balance dense relevance and content diversity.",
             "implemented": True,
             "default": False,
+        },
+        {
+            "id": "graphrag",
+            "label": "GraphRAG",
+            "description": "Extracts and traverses relationships between entities, then retrieves the source passages that support those graph connections.",
+            "implemented": True,
+            "default": False,
+        },
+        {
+            "id": "graphrag_hybrid",
+            "label": "GraphRAG + Hybrid Vector Search",
+            "description": "Combines graph relationships with dense semantic and BM25 retrieval, so missing graph edges do not block relevant source passages.",
+            "implemented": True,
+            "default": True,
         },
     ],
     "reranking": [

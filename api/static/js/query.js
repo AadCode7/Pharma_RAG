@@ -92,18 +92,24 @@ async function handleSubmit(e) {
       documents.forEach((doc) => {
         const li = document.createElement('li');
         li.className = 'source-doc-item';
+        const graphUsed = (result.graphContext || []).some((relation) =>
+          (relation.document_id && doc.documentId && String(relation.document_id) === String(doc.documentId)) ||
+          (relation.document_title && doc.documentTitle && relation.document_title === doc.documentTitle)
+        );
         const chunkNote = doc.chunkCount > 1 ? `${doc.chunkCount} sections used` : '1 section used';
         li.innerHTML = `
-          <span class="source-doc-title">${escapeHtml(doc.documentTitle)}</span>
+          <span class="source-doc-title">${escapeHtml(doc.documentTitle)}${graphUsed ? ' <span class="graph-document-badge">Graph</span>' : ''}</span>
           <span class="source-doc-meta">${chunkNote} · ${(doc.bestSimilarity * 100).toFixed(0)}% match</span>
         `;
         docsList.appendChild(li);
       });
     }
 
+    renderGraphContext(result.graphContext || []);
     document.getElementById('view-trace-link').href = `/trace?requestId=${result.requestId}`;
     document.getElementById('query-result').hidden = false;
   } catch (err) {
+    renderGraphContext([]);
     document.getElementById('answer-text').textContent = `Something went wrong: ${err.message}`;
     document.getElementById('answer-documents').innerHTML = '';
     document.getElementById('query-result').hidden = false;
@@ -121,6 +127,7 @@ function dedupeDocumentsFromChunks(chunks) {
     if (!existing) {
       byDoc.set(chunk.document_id, {
         documentTitle: chunk.document_title,
+        documentId: chunk.document_id,
         bestSimilarity: similarity,
         chunkCount: 1,
       });
@@ -130,4 +137,32 @@ function dedupeDocumentsFromChunks(chunks) {
     existing.bestSimilarity = Math.max(existing.bestSimilarity, similarity);
   });
   return Array.from(byDoc.values()).sort((a, b) => b.bestSimilarity - a.bestSimilarity);
+}
+
+
+function renderGraphContext(relations) {
+  const panel = document.getElementById('graph-context-panel');
+  const list = document.getElementById('graph-context-list');
+  if (!panel || !list) return;
+
+  list.replaceChildren();
+  const visible = Array.isArray(relations) ? relations.slice(0, 12) : [];
+  panel.hidden = visible.length === 0;
+  visible.forEach((relation) => {
+    const item = document.createElement('li');
+    item.className = 'graph-context-item';
+
+    const triple = document.createElement('p');
+    triple.className = 'graph-triple';
+    triple.textContent = `${relation.subject || 'Unknown entity'} → ${relation.predicate || 'related to'} → ${relation.object || 'Unknown entity'}`;
+
+    const source = document.createElement('p');
+    source.className = 'graph-context-source';
+    source.textContent = relation.document_title
+      ? `Evidence: ${relation.document_title}`
+      : 'Evidence: retrieved source passage';
+
+    item.append(triple, source);
+    list.appendChild(item);
+  });
 }

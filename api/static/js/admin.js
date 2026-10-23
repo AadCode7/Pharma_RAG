@@ -43,20 +43,20 @@ async function loadUploadStrategies() {
   uploadStrategies.chunking = strategies.chunking || [];
   uploadStrategies.embedding = strategies.embedding || [];
 
-  populateStrategySelect(document.getElementById('chunking-strategy'), uploadStrategies.chunking);
-  populateStrategySelect(document.getElementById('embedding-strategy'), uploadStrategies.embedding);
+  populateStrategySelect(document.getElementById('chunking-strategy'), uploadStrategies.chunking, 'coming next');
+  populateStrategySelect(document.getElementById('embedding-strategy'), uploadStrategies.embedding, 'not available');
 
   document.getElementById('chunking-strategy').addEventListener('change', updateSelectedUploadConfig);
   document.getElementById('embedding-strategy').addEventListener('change', updateSelectedUploadConfig);
   updateUploadStrategyStatus();
 }
 
-function populateStrategySelect(select, strategies) {
+function populateStrategySelect(select, strategies, unavailableSuffix = 'coming next') {
   select.innerHTML = '';
   strategies.forEach((strategy) => {
     const option = document.createElement('option');
     option.value = strategy.id;
-    option.textContent = strategy.implemented ? strategy.label : `${strategy.label} — coming next`;
+    option.textContent = strategy.implemented ? strategy.label : `${strategy.label} — ${unavailableSuffix}`;
     option.dataset.implemented = strategy.implemented ? 'true' : 'false';
     option.dataset.description = strategy.description || '';
     select.appendChild(option);
@@ -81,7 +81,7 @@ function updateUploadStrategyStatus() {
 
   if (unavailable.length === 0) {
     status.className = 'strategy-status';
-    status.textContent = `Executable configuration: ${chunking.textContent.replace(' — coming next', '')} chunking with ${embedding.textContent.replace(' — coming next', '')} embeddings.`;
+    status.textContent = `Executable configuration: ${chunking.textContent.replace(/ — (coming next|not available)$/, '')} chunking with ${embedding.textContent.replace(/ — (coming next|not available)$/, '')} embeddings.`;
   } else {
     status.className = 'strategy-status is-warning';
     status.textContent = 'The selected strategy is visible here so its configuration contract is ready, but its implementation will be added in a later milestone.';
@@ -139,6 +139,7 @@ async function handleUploadSubmit(e) {
   const departmentIds = Array.from(document.querySelectorAll('input[name="dept"]:checked')).map((i) => i.value);
   const chunkingStrategy = document.getElementById('chunking-strategy').value;
   const embeddingStrategy = document.getElementById('embedding-strategy').value;
+  const indexGraph = document.getElementById('graph-index-enabled').checked;
 
   if (!isImplemented('chunking', chunkingStrategy) || !isImplemented('embedding', embeddingStrategy)) {
     statusEl.hidden = false;
@@ -192,12 +193,21 @@ async function handleUploadSubmit(e) {
         existingDocumentId,
         chunkingStrategy,
         embeddingStrategy,
+        indexGraph,
       }),
     });
 
     statusEl.hidden = false;
-    statusEl.className = 'auth-status';
-    statusEl.textContent = `Published v${result.versionNumber} — ${result.chunksCreated} chunks created using ${formatStrategy(result.chunkingStrategy)} and ${formatStrategy(result.embeddingStrategy)}.`;
+    statusEl.className = result.graphIndexingStatus === 'failed' ? 'auth-status is-error' : 'auth-status';
+    let graphSummary = 'Graph indexing skipped.';
+    if (result.graphIndexingStatus === 'completed') {
+      graphSummary = result.graphRelationships > 0
+        ? `Graph index: ${result.graphRelationships} relationships across ${result.graphEntities} entities.`
+        : 'Graph indexing completed, but no supported relationships were extracted from this version.';
+    } else if (result.graphIndexingStatus === 'failed') {
+      graphSummary = result.graphIndexingError || 'Graph indexing failed; normal vector search is still available.';
+    }
+    statusEl.textContent = `Published v${result.versionNumber} — ${result.chunksCreated} chunks created using ${formatStrategy(result.chunkingStrategy)} and ${formatStrategy(result.embeddingStrategy)}. ${graphSummary}`;
 
     document.getElementById('upload-form').reset();
     document.getElementById('upload-existing-doc-id').value = '';

@@ -5,7 +5,7 @@
 Build a Retrieval-Augmented Generation system for a pharmaceutical company, where **data governance and evaluability are first-class requirements**, not add-ons. The project is delivered in two phases:
 
 - **V1 (Baseline):** Fixed-size chunking, single embedding model, single retrieval method, no reranking. Full end-to-end pipeline with tracing and an evaluation framework wired in from day one, even before a golden eval set exists.
-- **V2 (Experimentation):** Multiple chunking strategies, multiple embedding models, hybrid retrieval (dense + BM25), and reranking (RRF, Cohere Rerank, cross-encoder) — all benchmarked against the same eval harness so improvements over V1 are measurable, not assumed.
+- **V2 (Experimentation):** Multiple chunking strategies, dense/BM25 hybrid retrieval, Cohere reranking, Groq LLM reranking, and GraphRAG with optional hybrid vector search — benchmarked against a common evaluation set so improvements are measured, not assumed.
 
 Standing requirement across both phases: the knowledge base must stay current (manual upload + S3 sync, no stale data ever served to retrieval) and access to documents must be governed by department-based RBAC enforced at the database layer.
 
@@ -20,10 +20,10 @@ Standing requirement across both phases: the knowledge base must stay current (m
 | Database | Supabase Postgres + `pgvector` | Vector search, relational integrity, and RLS-based access control in one place |
 | Auth | Supabase Auth (social login: Apple/Google) | Seamless login as requested; issues a session Postgres can use for RLS |
 | File storage | Supabase Storage (+ optional S3 as a sync source) | Raw document storage, versioned |
-| Embeddings | Hugging Face Inference API (e.g. `BAAI/bge-small-en-v1.5`) | Free tier, no self-hosting |
+| Embeddings | Cohere Embed API (`embed-english-light-v3.0`, 384 dimensions) | Hosted embedding API used by the active implementation |
 | Generation LLM | Groq (Llama 3.3 70B) primary; Gemini as a V2 comparison point | Free/cheap, fast inference |
-| Sparse retrieval (V2) | Custom BM25 in JS | Postgres `ts_rank` isn't true BM25 — needed for an honest V2 comparison |
-| Reranking (V2) | RRF (computed in-app, free), Cohere Rerank (free trial tier), HF cross-encoder | Range of free/cheap options to compare |
+| Sparse retrieval | Custom BM25 in Python | Provides BM25 ranking over authorized chunks without another service |
+| Reranking | In-app Reciprocal Rank Fusion, Cohere Rerank, and Groq LLM reranking | Selectable second-stage ranking methods; provider limits apply |
 | Tracing | Custom — logged to Postgres, surfaced in-app | No third-party tracing SaaS, keeping all pipeline data (which may include sensitive doc content) inside our own infrastructure — consistent with the governance priority |
 
 ---
@@ -82,7 +82,7 @@ sync_jobs                  (id, source ['manual'|'s3'], status, documents_added,
 
 1. **Ingestion:** Manager uploads a document (or a scheduled S3 sync job pulls one in) → raw file stored in Supabase Storage → `documents` + `document_versions` rows created.
 2. **Chunking:** Fixed-size chunking (e.g. 512 tokens, 50-token overlap) → rows in `chunks`, tagged `chunk_strategy = 'fixed_size_v1'`.
-3. **Embedding:** Each chunk sent to the HF Inference API → stored in `chunk_embeddings`, tagged with `model_name`.
+3. **Embedding:** Each chunk is sent to Cohere Embed with `input_type=search_document` → stored in `chunk_embeddings`, tagged with `model_name`.
 4. **Retrieval:** Query embedded → `pgvector` cosine similarity search, filtered by the caller's department(s) via RLS, top-k returned.
 5. **Generation:** Retrieved chunks + query → Groq LLM → answer generated with citations back to source chunks.
 6. **Tracing:** Every stage's inputs, outputs, and timings logged to `traces`.
@@ -138,3 +138,41 @@ utils/                               -- pure helpers (chunking, hashing)
 architecture.md
 progress.md
 ```
+
+
+---
+
+## 10. GraphRAG extension (feature/graphrag-hybrid-search)
+
+### Ingestion and schema
+
+Graph extraction runs after chunks and embeddings for a new version have been stored and the version published. It uses the configured Groq chat model to extract explicit subject–predicate–object triples in small chunk batches. A grounding validator discards relationships whose endpoints do not appear in the cited source chunk. Each relationship references its supporting `chunk_id`, so the generated graph can be traced back to real text.
+
+- `graph_entities`: shared, normalized entity nodes and entity types.
+- `graph_relationships`: typed subject/predicate/object edges, confidence, and supporting chunk.
+- `visible_graph_relationships(p_caller_id, p_limit)`: server-only, security-definer SQL function. It returns only edges sourced from active chunks of the current document version that the caller is allowed to read by department (or all departments for a manager).
+- `database/migrations/0004_graph_rag.sql`: creates the graph schema, indexes, RLS, grants, and permission-filtered RPC.
+
+Graph indexing is enabled by default on the Knowledge Base upload form and can be disabled per version. A graph-extraction failure is reported separately and does not invalidate the successfully stored vector version. Existing documents must be republished to populate graph relationships.
+
+### Query strategies
+
+1. **GraphRAG**: resolve entities mentioned in the question, perform bounded graph-neighbor expansion (up to two hops), rank relationships by graph distance and lexical overlap, and use only their cited source chunks as answer context.
+2. **GraphRAG + Hybrid Vector Search**: run the same graph retrieval and the existing dense + BM25 hybrid retriever, then fuse the two candidate lists with Reciprocal Rank Fusion. The existing reranking selector is still applied afterward.
+
+The query UI displays graph triples only when their supporting source chunks are among the final answer context. Pipeline traces include graph counts and the relationships used. The graph contains extracted hypotheses that are validated against entity mentions; it is still an aid to retrieval, not a source of standalone medical truth.
+
+
+### GraphRAG data handling
+
+Graph indexing sends bounded source passages to the configured Groq API for relation extraction. This is a hosted inference call, not local inference; organizations must approve it under their pharmaceutical-data and vendor policies before enabling graph indexing on confidential material.
+
+## GraphRAG quality and token efficiency
+
+Graph extraction groups identical `parent_content` passages so Parent/Child indexing does not spend separate model calls on every overlapping child. Large contexts are divided into bounded, overlapping windows. Each extracted edge is linked to a real child chunk; the permission-filtered graph RPC returns that chunk's parent passage as evidence when available.
+
+Extraction uses a strict evidence quote and validates the subject, object, and quote against the exact extraction unit. A small deterministic relation-pattern extractor handles explicit statements without API tokens; when it finds at least three relationships in a unit, the model call is skipped for that unit. If Groq is rate-limited, locally extracted and source-validated relations can be retained instead of failing the entire graph job.
+
+The `graph_extraction_cache` table stores candidate triples by source SHA-256, model, and prompt version. Cached candidates are revalidated before persistence. Cache read/write failures are non-fatal. Apply `database/migrations/0005_graph_rag_quality.sql` after migration 0004.
+
+The query selector recommends GraphRAG + Hybrid Vector Search: graph traversal helps discover connected evidence, while dense and BM25 retrieval remain available when the graph is incomplete. Graph edges are retrieval hints only; final answers must remain grounded in the original retrieved passage.

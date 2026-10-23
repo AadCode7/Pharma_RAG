@@ -1,6 +1,7 @@
 import uuid
 
 from api.services.embedding_service import embed_texts
+from api.services.graph_service import index_document_graph
 from config.settings import settings
 from config.strategies import require_strategy
 from database.client import get_service_client
@@ -27,6 +28,7 @@ async def ingest_document(
     user_id: str,
     chunking_strategy: str = "fixed_size_v1",
     embedding_strategy: str = "bge_small",
+    index_graph: bool = True,
 ) -> dict:
     """Handles both a brand new document and a new version of an existing
     one.
@@ -196,6 +198,21 @@ async def ingest_document(
                     "id", prev_ids
                 ).is_("superseded_at", "null").execute()
 
+        graph_status = "skipped"
+        graph_entities = 0
+        graph_relationships = 0
+        graph_error = None
+        if index_graph:
+            try:
+                graph_result = await index_document_graph(inserted_chunks.data or [])
+                graph_status = "completed"
+                graph_entities = int(graph_result.get("entities", 0))
+                graph_relationships = int(graph_result.get("relationships", 0))
+            except Exception as graph_exc:  # graph enrichment must not roll back a valid vector publication
+                graph_status = "failed"
+                graph_error = "Graph indexing failed; vector search is available. Check server logs and republish to retry."
+                logger.error(f"Graph indexing failed for document {document_id}, version {version_id}: {graph_exc}")
+
         return {
             "document_id": document_id,
             "version_id": version_id,
@@ -204,6 +221,10 @@ async def ingest_document(
             "chunking_strategy": chunk_config["id"],
             "embedding_strategy": embedding_config["id"],
             "embedding_model": embedding_config["model_name"],
+            "graph_indexing_status": graph_status,
+            "graph_entities": graph_entities,
+            "graph_relationships": graph_relationships,
+            "graph_indexing_error": graph_error,
         }
 
     except Exception:

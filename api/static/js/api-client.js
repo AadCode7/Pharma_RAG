@@ -43,7 +43,7 @@ function renderDocList(listEl, documents) {
     li.className = 'doc-item';
     const versions = (doc.document_versions || []).sort((a, b) => b.version_number - a.version_number);
     li.innerHTML = `
-      <h4>${escapeHtml(doc.title)}</h4>
+      <h4>${escapeHtml(doc.title)} ${doc.graph_indexed ? '<span class="graph-document-badge">Graph</span>' : ''}</h4>
       ${versions.map((v) => `
         <div class="version-row">
           <span class="badge ${v.id === doc.current_version_id ? 'badge-current' : 'badge-superseded'}">
