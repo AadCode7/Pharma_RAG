@@ -967,3 +967,67 @@ pre.prompt-block-muted {
   .strategy-grid-query,
   .strategy-grid-upload { grid-template-columns: 1fr; }
 }
+
+
+/* -----------------------------------------------------------
+   GraphRAG: upload indexing control and source-grounded triples
+----------------------------------------------------------- */
+.graph-index-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 4px;
+  margin: 1rem 0;
+}
+.graph-index-toggle input {
+  margin-top: 0.25rem;
+  accent-color: var(--accent);
+}
+.graph-index-toggle span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.graph-index-toggle strong {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.graph-index-toggle small,
+.graph-context-help {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.graph-context-panel {
+  margin: 1.3rem 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.graph-context-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  gap: 0.6rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.8rem 0 0;
+}
+.graph-context-item {
+  min-width: 0;
+  padding: 0.75rem 0.85rem;
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.graph-triple {
+  margin: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.graph-context-source {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
