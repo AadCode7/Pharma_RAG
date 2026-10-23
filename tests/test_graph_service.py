@@ -9,7 +9,7 @@ os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("COHERE_API_KEY", "test-cohere-key")
 
 from api.services.graph_service import (
-    _rank_graph_edges, _validate_extracted_relationships, fuse_rankings_rrf, normalize_name,
+    _build_extraction_units, _rank_graph_edges, _validate_extracted_relationships, fuse_rankings_rrf, normalize_name,
 )
 
 
@@ -70,12 +70,35 @@ class GraphServiceTests(unittest.TestCase):
     def test_relationship_validation_discards_entities_not_in_cited_chunk(self):
         batch = [{"chunk_ref":0,"chunk_id":"chunk-1","content":"Metformin may cause nausea."}]
         good = {"chunk_ref":0,"subject":"Metformin","subject_type":"drug","predicate":"may cause",
-                "object":"nausea","object_type":"symptom","confidence":0.9}
+                "object":"nausea","object_type":"symptom","confidence":0.9,
+                "evidence_quote":"Metformin may cause nausea."}
         hallucinated = {"chunk_ref":0,"subject":"Metformin","subject_type":"drug",
-                        "predicate":"interacts with","object":"warfarin","object_type":"drug","confidence":0.99}
+                        "predicate":"interacts with","object":"warfarin","object_type":"drug","confidence":0.99,
+                        "evidence_quote":"Metformin interacts with warfarin."}
         valid = _validate_extracted_relationships([good, hallucinated], batch)
         self.assertEqual(len(valid), 1)
         self.assertEqual(valid[0]["object_norm"], "nausea")
+
+
+    def test_parent_child_context_is_deduplicated_for_graph_extraction(self):
+        chunks = [
+            {"id": "child-1", "content": "Calibration is required.", "parent_content": "Equipment A must be calibrated before each batch."},
+            {"id": "child-2", "content": "before each batch.", "parent_content": "Equipment A must be calibrated before each batch."},
+            {"id": "child-3", "content": "A separate section.", "parent_content": "A separate section."},
+        ]
+        units = _build_extraction_units(chunks)
+        self.assertEqual(len(units), 2)
+        self.assertEqual(units[0]["chunk_id"], "child-1")
+        self.assertIn("Equipment A must be calibrated", units[0]["content"])
+
+    def test_relationship_validation_requires_verbatim_evidence_quote(self):
+        batch = [{"chunk_ref": 0, "chunk_id": "child-1", "content": "Metformin may cause nausea."}]
+        relation = {
+            "chunk_ref": 0, "subject": "Metformin", "subject_type": "drug",
+            "predicate": "may cause", "object": "nausea", "object_type": "symptom",
+            "confidence": 0.9, "evidence_quote": "Made up evidence not in the source.",
+        }
+        self.assertEqual(_validate_extracted_relationships([relation], batch), [])
 
     def test_hybrid_rrf_fuses_graph_and_vector_results(self):
         graph = [{"chunk_id":"shared","document_id":"d1","content":"graph"},
