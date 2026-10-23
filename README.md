@@ -31,7 +31,7 @@ utils/                             # pure helpers (chunking, hashing)
 ## 1. Supabase setup
 
 1. Create a project at supabase.com.
-2. In the SQL editor, run `database/migrations/0001_initial_schema.sql`.
+2. In the SQL editor, run `database/migrations/0001_initial_schema.sql`. For an existing deployment that already has the base schema and strategy columns, apply the new `database/migrations/0004_graph_rag.sql` migration. Also apply `0003_rag_strategy_configuration.sql` if that migration has not been run yet. GraphRAG requests will not work until `0004_graph_rag.sql` has completed successfully.
 3. In **Authentication → Providers**, enable Google (and Apple, if you have
    an Apple Developer account configured — it needs more setup than Google).
    Email OTP (magic link) is enabled by default, so you can test the whole
@@ -119,3 +119,22 @@ too constrained for this app's needs.
 - S3 sync — the schema (`sync_jobs`) anticipates it, the job itself isn't built.
 - Everything in the V2 plan: chunking strategy comparisons, multiple
   embedding models, BM25/hybrid retrieval, reranking.
+
+
+## GraphRAG and GraphRAG + Hybrid Vector Search
+
+This branch adds two selectable query strategies:
+
+- **GraphRAG**: extracts source-grounded subject–predicate–object relationships during upload, matches query entities, explores the visible graph to two hops, and uses the supporting document chunks as LLM context.
+- **GraphRAG + Hybrid Vector Search**: fuses graph-derived passages with the existing dense semantic + BM25 retrieval using Reciprocal Rank Fusion (RRF).
+
+### Setup and use
+
+1. Apply `database/migrations/0004_graph_rag.sql` in Supabase SQL Editor.
+2. Set `GROQ_API_KEY` and `COHERE_API_KEY` in the backend environment. Groq is used for graph extraction; Cohere remains the embedding provider.
+3. Deploy this branch. In Knowledge Base, keep **Build knowledge graph during upload** checked when publishing or republishing a document version. The upload response reports graph indexing status and relationship counts.
+4. Ask a question on the Query page and select either graph strategy. The response shows the graph relationships tied to the source chunks actually passed to answer generation.
+
+Existing documents are not backfilled automatically. Republish each version that should become available to GraphRAG. If graph extraction fails, the successfully published vector index remains available and the manager UI reports the failure; check backend logs and republish to retry. Graph extraction adds Groq calls and can increase upload latency, especially for long documents.
+
+Graph rows are attached to chunk IDs. The graph retrieval SQL function applies department-based visibility, active chunk checks, and the current document-version pointer before returning edges. Do not query graph tables directly from browser code.
