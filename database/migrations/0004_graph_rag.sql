@@ -1,0 +1,67 @@
+-- GraphRAG storage and permission-filtered graph retrieval.
+-- Every relationship is grounded in a source chunk. Reads filter by visibility
+-- and current document version before graph results reach the LLM.
+create table if not exists public.graph_entities (
+  id uuid primary key default gen_random_uuid(),
+  canonical_name text not null check (char_length(trim(canonical_name)) between 1 and 200),
+  normalized_name text not null,
+  entity_type text not null default 'concept',
+  created_at timestamptz not null default now(),
+  constraint graph_entities_normalized_type_unique unique (normalized_name, entity_type)
+);
+create table if not exists public.graph_relationships (
+  id uuid primary key default gen_random_uuid(),
+  subject_entity_id uuid not null references public.graph_entities(id) on delete cascade,
+  predicate text not null check (char_length(trim(predicate)) between 1 and 100),
+  object_entity_id uuid not null references public.graph_entities(id) on delete cascade,
+  chunk_id uuid not null references public.chunks(id) on delete cascade,
+  confidence double precision not null default 0.7 check (confidence >= 0 and confidence <= 1),
+  created_at timestamptz not null default now(),
+  constraint graph_relationships_chunk_triple_unique
+    unique (chunk_id, subject_entity_id, predicate, object_entity_id),
+  constraint graph_relationships_distinct_entities check (subject_entity_id <> object_entity_id)
+);
+create index if not exists graph_entities_normalized_name_idx on public.graph_entities (normalized_name);
+create index if not exists graph_relationships_subject_idx on public.graph_relationships (subject_entity_id);
+create index if not exists graph_relationships_object_idx on public.graph_relationships (object_entity_id);
+create index if not exists graph_relationships_chunk_idx on public.graph_relationships (chunk_id);
+alter table public.graph_entities enable row level security;
+alter table public.graph_relationships enable row level security;
+-- Browser clients cannot enumerate graph rows; server-side graph reads use the
+-- RPC below and inserts require the backend service role.
+grant select, insert, update, delete on public.graph_entities to service_role;
+grant select, insert, update, delete on public.graph_relationships to service_role;
+
+create or replace function public.visible_graph_relationships(
+  p_caller_id uuid, p_limit integer default 2000
+)
+returns table (
+  relationship_id uuid, subject_entity_id uuid, subject_name text, subject_type text,
+  predicate text, object_entity_id uuid, object_name text, object_type text,
+  chunk_id uuid, document_id uuid, document_title text, content text, confidence double precision
+)
+language sql stable security definer set search_path = public
+as $$
+  select gr.id, se.id, se.canonical_name, se.entity_type, gr.predicate,
+         oe.id, oe.canonical_name, oe.entity_type, c.id, d.id, d.title, c.content, gr.confidence
+  from public.graph_relationships gr
+  join public.graph_entities se on se.id = gr.subject_entity_id
+  join public.graph_entities oe on oe.id = gr.object_entity_id
+  join public.chunks c on c.id = gr.chunk_id and c.is_active = true
+  join public.document_versions dv on dv.id = c.document_version_id
+  join public.documents d on d.id = dv.document_id
+    and d.status = 'active' and d.current_version_id = dv.id
+  where p_caller_id is not null and (
+    public.is_manager(p_caller_id) or exists (
+      select 1 from public.document_departments dd
+      join public.user_departments ud on ud.department_id = dd.department_id
+      where dd.document_id = d.id and ud.user_id = p_caller_id
+    )
+  )
+  order by gr.created_at desc
+  limit least(greatest(coalesce(p_limit, 2000), 1), 5000);
+$$;
+revoke all on function public.visible_graph_relationships(uuid, integer) from public;
+revoke all on function public.visible_graph_relationships(uuid, integer) from anon;
+revoke all on function public.visible_graph_relationships(uuid, integer) from authenticated;
+grant execute on function public.visible_graph_relationships(uuid, integer) to service_role;
