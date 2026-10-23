@@ -1031,3 +1031,20 @@ pre.prompt-block-muted {
   font-size: 0.78rem;
   overflow-wrap: anywhere;
 }
+
+/* Small label for documents with graph relationships indexed. */
+.graph-document-badge,
+.documents-rail-graph-badge {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--accent);
+  font-family: var(--font-data);
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.3;
+  vertical-align: middle;
+  white-space: nowrap;
+}
