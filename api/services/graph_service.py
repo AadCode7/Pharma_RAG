@@ -1,6 +1,7 @@
 """Graph extraction, persistence, and permission-scoped GraphRAG retrieval."""
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections import defaultdict, deque
@@ -13,8 +14,8 @@ from database.client import get_service_client
 from exception.exceptions import UpstreamServiceError
 
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
-EXTRACTION_BATCH_SIZE = 4
-MAX_CHUNK_CHARS = 2600
+EXTRACTION_BATCH_SIZE = 2
+MAX_CHUNK_CHARS = 1500
 MAX_VISIBLE_GRAPH_EDGES = 2000
 MAX_GRAPH_CANDIDATES = 40
 MAX_GRAPH_CONTEXT_ITEMS = 12
@@ -90,7 +91,7 @@ async def _extract_relationship_batch(batch: list[dict[str, Any]]) -> list[dict[
             {"role": "user", "content": prompt},
         ],
         "temperature": 0.0,
-        "max_tokens": 2200,
+        "max_tokens": 1000,
         # Suppress reasoning text to reduce output tokens and keep the response
         # focused on the JSON payload.
         "include_reasoning": False,
@@ -103,13 +104,42 @@ async def _extract_relationship_batch(batch: list[dict[str, Any]]) -> list[dict[
 
     try:
         async with httpx.AsyncClient(timeout=40.0) as client:
-            response = await client.post(
-                GROQ_CHAT_URL,
-                headers={"Authorization": f"Bearer {settings.groq_api_key}"},
-                json=request_payload,
-            )
+            response = None
+            for attempt in range(3):
+                response = await client.post(
+                    GROQ_CHAT_URL,
+                    headers={"Authorization": f"Bearer {settings.groq_api_key}"},
+                    json=request_payload,
+                )
+                if response.status_code != 429 or attempt == 2:
+                    break
+
+                # Groq may provide Retry-After, or include the wait duration in
+                # its error message. Respect that window rather than retrying
+                # immediately and consuming more of the shared token budget.
+                retry_delay = response.headers.get("retry-after")
+                if retry_delay:
+                    try:
+                        delay_seconds = max(1.0, float(retry_delay))
+                    except ValueError:
+                        delay_seconds = float(2 ** (attempt + 1))
+                else:
+                    try:
+                        error_message = str(response.json().get("error", {}).get("message", ""))
+                    except (ValueError, AttributeError):
+                        error_message = ""
+                    wait_match = re.search(r"try again in ([0-9.]+)s", error_message, re.IGNORECASE)
+                    delay_seconds = (
+                        float(wait_match.group(1)) + 0.5
+                        if wait_match
+                        else float(2 ** (attempt + 1))
+                    )
+                await asyncio.sleep(min(delay_seconds, 60.0))
     except httpx.RequestError as exc:
         raise UpstreamServiceError("Graph indexing could not reach the configured language model.") from exc
+
+    if response is None:
+        raise UpstreamServiceError("Graph extraction did not receive a response from the language model.")
 
     if response.status_code != 200:
         # Keep enough of the provider response to diagnose invalid parameters
