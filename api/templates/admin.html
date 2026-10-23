@@ -36,6 +36,14 @@
       </label>
     </div>
 
+    <label class="graph-index-toggle">
+      <input id="graph-index-enabled" type="checkbox" checked />
+      <span>
+        <strong>Build knowledge graph during upload</strong>
+        <small>Extract entities and relationships from this version. This uses the configured Groq model and may add upload time. Required for GraphRAG queries against this version.</small>
+      </span>
+    </label>
+
     <div id="upload-strategy-status" class="strategy-status" hidden></div>
 
     <fieldset id="upload-departments" class="dept-fieldset">
