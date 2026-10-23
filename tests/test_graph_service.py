@@ -38,6 +38,24 @@ class GraphServiceTests(unittest.TestCase):
         self.assertTrue(any(item["subject"] == "Metformin" for item in context))
         self.assertNotIn("chunk-3", [item["chunk_id"] for item in candidates])
 
+    def test_short_entity_does_not_match_inside_another_word(self):
+        edges = [
+            {
+                "subject_entity_id": "e1", "subject_name": "Metformin", "subject_type": "drug",
+                "predicate": "treats", "object_entity_id": "e2", "object_name": "Diabetes",
+                "chunk_id": "chunk-1", "document_id": "doc-1",
+                "document_title": "SOP", "content": "Metformin treats diabetes.",
+            },
+            {
+                "subject_entity_id": "e3", "subject_name": "Tin", "subject_type": "concept",
+                "predicate": "appears in", "object_entity_id": "e4", "object_name": "Glass",
+                "chunk_id": "chunk-2", "document_id": "doc-2",
+                "document_title": "Lab guide", "content": "Tin appears in glass.",
+            },
+        ]
+        candidates, _context, _stats = _rank_graph_edges("metformin", edges, 10)
+        self.assertEqual([row["chunk_id"] for row in candidates], ["chunk-1"])
+
     def test_query_without_graph_overlap_returns_no_candidates(self):
         edges = [{
             "subject_entity_id":"a","subject_name":"Metformin","predicate":"treats",
