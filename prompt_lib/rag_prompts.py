@@ -25,11 +25,11 @@ SYSTEM_PROMPT = (
 
 def build_context_block(chunks: list[dict]) -> str:
     parts = [
-        f"[{i}] (source: {chunk.get('document_title') or 'Untitled document'})\\n"
+        f"[{i}] (source: {chunk.get('document_title') or 'Untitled document'})\n"
         f"{chunk.get('content') or ''}"
         for i, chunk in enumerate(chunks, start=1)
     ]
-    return "\\n\\n".join(parts)
+    return "\n\n".join(parts)
 
 
 def build_graph_context_block(graph_context: list[dict], chunks: list[dict]) -> str:
@@ -62,8 +62,8 @@ def build_graph_context_block(graph_context: list[dict], chunks: list[dict]) -> 
         return ""
     return (
         "Graph relationships (retrieval hints grounded in the numbered source blocks; "
-        "verify them against the source text before using them):\\n"
-        + "\\n".join(parts)
+        "verify them against the source text before using them):\n"
+        + "\n".join(parts)
     )
 
 
@@ -72,12 +72,12 @@ def build_user_prompt(
 ) -> str:
     context = build_context_block(chunks)
     graph_block = build_graph_context_block(graph_context or [], chunks)
-    sections = [f"Source context:\\n{context}"]
+    sections = [f"Source context:\n{context}"]
     if graph_block:
         sections.append(graph_block)
     sections.append(
-        f"Question: {query}\\n\\n"
+        f"Question: {query}\n\n"
         "Provide your ## Answer and ## Reasoning sections now. Cite claims using "
         "only the numbered source blocks."
     )
-    return "\\n\\n".join(sections)
+    return "\n\n".join(sections)
