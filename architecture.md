@@ -166,3 +166,13 @@ The query UI displays graph triples only when their supporting source chunks are
 ### GraphRAG data handling
 
 Graph indexing sends bounded source passages to the configured Groq API for relation extraction. This is a hosted inference call, not local inference; organizations must approve it under their pharmaceutical-data and vendor policies before enabling graph indexing on confidential material.
+
+## GraphRAG quality and token efficiency
+
+Graph extraction groups identical `parent_content` passages so Parent/Child indexing does not spend separate model calls on every overlapping child. Large contexts are divided into bounded, overlapping windows. Each extracted edge is linked to a real child chunk; the permission-filtered graph RPC returns that chunk's parent passage as evidence when available.
+
+Extraction uses a strict evidence quote and validates the subject, object, and quote against the exact extraction unit. A small deterministic relation-pattern extractor handles explicit statements without API tokens; when it finds at least three relationships in a unit, the model call is skipped for that unit. If Groq is rate-limited, locally extracted and source-validated relations can be retained instead of failing the entire graph job.
+
+The `graph_extraction_cache` table stores candidate triples by source SHA-256, model, and prompt version. Cached candidates are revalidated before persistence. Cache read/write failures are non-fatal. Apply `database/migrations/0005_graph_rag_quality.sql` after migration 0004.
+
+The query selector recommends GraphRAG + Hybrid Vector Search: graph traversal helps discover connected evidence, while dense and BM25 retrieval remain available when the graph is incomplete. Graph edges are retrieval hints only; final answers must remain grounded in the original retrieved passage.
