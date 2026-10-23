@@ -199,6 +199,107 @@ def _build_extraction_units(chunks: list[dict[str, Any]]) -> list[dict[str, Any]
     return units
 
 
+
+_RULE_RELATION_PATTERNS = (
+    ("is used to treat", "used to treat"),
+    ("used to treat", "used to treat"),
+    ("is indicated for", "indicated for"),
+    ("indicated for", "indicated for"),
+    ("is contraindicated in", "contraindicated in"),
+    ("contraindicated in", "contraindicated in"),
+    ("must be calibrated before", "must be calibrated before"),
+    ("is calibrated before", "calibrated before"),
+    ("must be retained for", "must be retained for"),
+    ("must be stored between", "must be stored between"),
+    ("must be stored below", "must be stored below"),
+    ("must be stored at", "must be stored at"),
+    ("is stored at", "stored at"),
+    ("may cause", "may cause"),
+    ("can cause", "can cause"),
+    ("interacts with", "interacts with"),
+    ("is associated with", "associated with"),
+    ("consists of", "consists of"),
+    ("treats", "treats"),
+    ("causes", "causes"),
+    ("requires", "requires"),
+    ("inhibits", "inhibits"),
+    ("increases", "increases"),
+    ("reduces", "reduces"),
+    ("prevents", "prevents"),
+    ("contains", "contains"),
+    ("specifies", "specifies"),
+)
+
+
+def _infer_entity_type(name: str) -> str:
+    value = name.casefold()
+    if re.search(r"\b(drug|medicine|medication|compound|tablet|capsule|vaccine)\b", value):
+        return "drug"
+    if re.search(r"\b(disease|syndrome|diabetes|infection|cancer|disorder)\b", value):
+        return "disease"
+    if re.search(r"\b(symptom|nausea|headache|rash|fever|pain|adverse effect)\b", value):
+        return "symptom"
+    if re.search(r"\b(regulation|guideline|standard|sop|ich|gmp|fda|who)\b", value):
+        return "regulation"
+    if re.search(r"\b(equipment|instrument|machine|chromatograph|hplc)\b", value):
+        return "equipment"
+    if re.search(r"\b(procedure|process|calibration|inspection|manufacturing|storage)\b", value):
+        return "process"
+    return "concept"
+
+
+def _rule_based_relationships(unit: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract a small set of unambiguous verb-pattern triples without an API call."""
+    text = str(unit.get("content") or "")
+    sentences = re.split(r"(?<=[.!?;])\s+|\n+", text)
+    results: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    ordered_patterns = sorted(_RULE_RELATION_PATTERNS, key=lambda item: len(item[0]), reverse=True)
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence or len(sentence) > 700:
+            continue
+        match = None
+        predicate = ""
+        for phrase, canonical_predicate in ordered_patterns:
+            candidate = re.search(r"\b" + re.escape(phrase) + r"\b", sentence, re.IGNORECASE)
+            if candidate:
+                match, predicate = candidate, canonical_predicate
+                break
+        if not match:
+            continue
+        subject = sentence[:match.start()].strip(" ,:-")
+        obj = sentence[match.end():].strip(" ,:-")
+        subject = re.sub(r"^(?:the|a|an|this|these|those)\s+", "", subject, flags=re.IGNORECASE)
+        obj = re.sub(r"^(?:the|a|an|this|these|those)\s+", "", obj, flags=re.IGNORECASE)
+        # Avoid turning introductory clauses or very long lists into entities.
+        if not subject or not obj or len(subject.split()) > 7 or len(obj.split()) > 12:
+            continue
+        if re.match(r"^(?:according to|for example|in this section|note that|it is|there is)\b", subject, re.IGNORECASE):
+            continue
+        obj = re.split(r"\s+(?:because|although|however|whereas)\s+", obj, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+        subject_norm, object_norm = normalize_name(subject), normalize_name(obj)
+        if len(subject_norm) < 2 or len(object_norm) < 2 or subject_norm == object_norm:
+            continue
+        key = (subject_norm, predicate, object_norm)
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append({
+            "chunk_ref": int(unit["chunk_ref"]),
+            "subject": subject,
+            "subject_type": _infer_entity_type(subject),
+            "predicate": predicate,
+            "object": obj.rstrip("."),
+            "object_type": _infer_entity_type(obj),
+            "confidence": 0.72,
+            "evidence_quote": sentence,
+        })
+        if len(results) >= 12:
+            break
+    return results
+
+
 def _read_extraction_cache(service: Any, units: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     hashes = list({str(unit["source_hash"]) for unit in units})
     if not hashes:
@@ -330,10 +431,30 @@ async def index_document_graph(chunks: list[dict[str, Any]]) -> dict[str, int]:
             ]
 
     try:
-        for offset in range(0, len(missing), EXTRACTION_BATCH_SIZE):
-            batch = missing[offset:offset + EXTRACTION_BATCH_SIZE]
-            extracted = await _extract_relationship_batch(batch)
-            by_ref: dict[int, list[dict[str, Any]]] = defaultdict(list)
+        rule_results = {
+            int(unit["chunk_ref"]): _rule_based_relationships(unit)
+            for unit in missing
+        }
+        # When local patterns already recover several explicit relationships,
+        # skip the LLM for that unit to save tokens. Otherwise use the LLM to
+        # discover less formulaic relations and merge the two result sets.
+        llm_units = [
+            unit for unit in missing
+            if len(rule_results[int(unit["chunk_ref"])]) < 3
+        ]
+        llm_results: dict[int, list[dict[str, Any]]] = defaultdict(list)
+        for offset in range(0, len(llm_units), EXTRACTION_BATCH_SIZE):
+            batch = llm_units[offset:offset + EXTRACTION_BATCH_SIZE]
+            try:
+                extracted = await _extract_relationship_batch(batch)
+            except UpstreamServiceError:
+                if not any(rule_results[int(unit["chunk_ref"])] for unit in batch):
+                    raise
+                logger.warning(
+                    "Groq graph extraction unavailable; using validated local relation patterns for %d unit(s)",
+                    len(batch),
+                )
+                continue
             allowed_refs = {int(unit["chunk_ref"]) for unit in batch}
             for relation in extracted:
                 try:
@@ -341,9 +462,13 @@ async def index_document_graph(chunks: list[dict[str, Any]]) -> dict[str, int]:
                 except (TypeError, ValueError):
                     continue
                 if ref in allowed_refs:
-                    by_ref[ref].append(relation)
-            for unit in batch:
-                extracted_by_hash[str(unit["source_hash"])] = by_ref.get(int(unit["chunk_ref"]), [])
+                    llm_results[ref].append(relation)
+        for unit in missing:
+            ref = int(unit["chunk_ref"])
+            merged = rule_results[ref] + llm_results.get(ref, [])
+            # Prefer model-extracted evidence for duplicate triples; validation
+            # and database upserts still deduplicate before persistence.
+            extracted_by_hash[str(unit["source_hash"])] = merged
         # Persist only missing-unit outputs; cache failure never blocks indexing.
         _write_extraction_cache(service, missing, {
             int(unit["chunk_ref"]): extracted_by_hash.get(str(unit["source_hash"]), [])
