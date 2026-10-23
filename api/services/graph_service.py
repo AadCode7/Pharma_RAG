@@ -15,7 +15,7 @@ from exception.exceptions import UpstreamServiceError
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 EXTRACTION_BATCH_SIZE = 4
 MAX_CHUNK_CHARS = 2600
-MAX_VISIBLE_GRAPH_EDGES = 5000
+MAX_VISIBLE_GRAPH_EDGES = 2000
 MAX_GRAPH_CANDIDATES = 40
 MAX_GRAPH_CONTEXT_ITEMS = 12
 
@@ -379,7 +379,11 @@ def retrieve_graph_candidates(
     try:
         result = service.rpc(
             "visible_graph_relationships",
-            {"p_caller_id": caller_id, "p_limit": MAX_VISIBLE_GRAPH_EDGES},
+            {
+                "p_caller_id": caller_id,
+                "p_query": query,
+                "p_limit": MAX_VISIBLE_GRAPH_EDGES,
+            },
         ).execute()
     except Exception as exc:
         raise UpstreamServiceError(
