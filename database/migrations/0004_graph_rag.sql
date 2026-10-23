@@ -94,7 +94,7 @@ as $$
     select distinct v.subject_entity_id as entity_id
     from visible_edges v cross join normalized_query q
     where q.value <> '' and (
-      (length(v.subject_norm) > 0 and position(v.subject_norm in q.value) > 0)
+      (length(v.subject_norm) > 0 and position(' ' || v.subject_norm || ' ' in ' ' || q.value || ' ') > 0)
       or exists (
         select 1 from query_terms t
         where position(' ' || t.term || ' ' in ' ' || v.subject_norm || ' ') > 0
@@ -104,7 +104,7 @@ as $$
     select distinct v.object_entity_id as entity_id
     from visible_edges v cross join normalized_query q
     where q.value <> '' and (
-      (length(v.object_norm) > 0 and position(v.object_norm in q.value) > 0)
+      (length(v.object_norm) > 0 and position(' ' || v.object_norm || ' ' in ' ' || q.value || ' ') > 0)
       or exists (
         select 1 from query_terms t
         where position(' ' || t.term || ' ' in ' ' || v.object_norm || ' ') > 0
