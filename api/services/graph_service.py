@@ -96,6 +96,10 @@ async def _extract_relationship_batch(batch: list[dict[str, Any]]) -> list[dict[
                     ],
                     "temperature": 0.0,
                     "max_tokens": 2200,
+                    # GPT-OSS supports include_reasoning (not reasoning_format);
+                    # disabling reasoning output keeps extraction responses lean.
+                    "include_reasoning": False,
+                    "reasoning_effort": "low",
                     "response_format": {"type": "json_object"},
                 },
             )
@@ -103,8 +107,15 @@ async def _extract_relationship_batch(batch: list[dict[str, Any]]) -> list[dict[
         raise UpstreamServiceError("Graph indexing could not reach the configured language model.") from exc
 
     if response.status_code != 200:
+        # Keep enough of the provider response to diagnose invalid parameters
+        # and model availability errors from deployment logs.
+        try:
+            error_body = json.dumps(response.json(), ensure_ascii=False)
+        except ValueError:
+            error_body = response.text
         raise UpstreamServiceError(
-            f"Graph extraction failed ({response.status_code}): {response.text[:300]}"
+            f"Graph extraction failed ({response.status_code}) using model "
+            f"{settings.groq_model}: {error_body[:1200]}"
         )
     try:
         content = response.json()["choices"][0]["message"]["content"]
