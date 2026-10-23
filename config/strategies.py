@@ -135,8 +135,8 @@ STRATEGIES = {
         },
         {
             "id": "graphrag_hybrid",
-            "label": "GraphRAG + Hybrid Vector Search (Recommended)",
-            "description": "Recommended: combines graph relationships with dense semantic and BM25 retrieval, so missing graph edges do not block relevant source passages.",
+            "label": "GraphRAG + Hybrid Vector Search",
+            "description": "Combines graph relationships with dense semantic and BM25 retrieval, so missing graph edges do not block relevant source passages.",
             "implemented": True,
             "default": True,
         },
