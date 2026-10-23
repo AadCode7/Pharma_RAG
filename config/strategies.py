@@ -126,6 +126,20 @@ STRATEGIES = {
             "implemented": True,
             "default": False,
         },
+        {
+            "id": "graphrag",
+            "label": "GraphRAG",
+            "description": "Extracts and traverses relationships between entities, then retrieves the source passages that support those graph connections.",
+            "implemented": True,
+            "default": False,
+        },
+        {
+            "id": "graphrag_hybrid",
+            "label": "GraphRAG + Hybrid Vector Search",
+            "description": "Fuses graph-traversal results with dense semantic and BM25 retrieval using Reciprocal Rank Fusion.",
+            "implemented": True,
+            "default": False,
+        },
     ],
     "reranking": [
         {
