@@ -20,10 +20,10 @@ Standing requirement across both phases: the knowledge base must stay current (m
 | Database | Supabase Postgres + `pgvector` | Vector search, relational integrity, and RLS-based access control in one place |
 | Auth | Supabase Auth (social login: Apple/Google) | Seamless login as requested; issues a session Postgres can use for RLS |
 | File storage | Supabase Storage (+ optional S3 as a sync source) | Raw document storage, versioned |
-| Embeddings | Hugging Face Inference API (e.g. `BAAI/bge-small-en-v1.5`) | Free tier, no self-hosting |
+| Embeddings | Cohere Embed API (`embed-english-light-v3.0`, 384 dimensions) | Hosted embedding API used by the active implementation |
 | Generation LLM | Groq (Llama 3.3 70B) primary; Gemini as a V2 comparison point | Free/cheap, fast inference |
-| Sparse retrieval (V2) | Custom BM25 in JS | Postgres `ts_rank` isn't true BM25 — needed for an honest V2 comparison |
-| Reranking (V2) | RRF (computed in-app, free), Cohere Rerank (free trial tier), HF cross-encoder | Range of free/cheap options to compare |
+| Sparse retrieval | Custom BM25 in Python | Provides BM25 ranking over authorized chunks without another service |
+| Reranking | In-app Reciprocal Rank Fusion, Cohere Rerank, and Groq LLM reranking | Selectable second-stage ranking methods; provider limits apply |
 | Tracing | Custom — logged to Postgres, surfaced in-app | No third-party tracing SaaS, keeping all pipeline data (which may include sensitive doc content) inside our own infrastructure — consistent with the governance priority |
 
 ---
@@ -82,7 +82,7 @@ sync_jobs                  (id, source ['manual'|'s3'], status, documents_added,
 
 1. **Ingestion:** Manager uploads a document (or a scheduled S3 sync job pulls one in) → raw file stored in Supabase Storage → `documents` + `document_versions` rows created.
 2. **Chunking:** Fixed-size chunking (e.g. 512 tokens, 50-token overlap) → rows in `chunks`, tagged `chunk_strategy = 'fixed_size_v1'`.
-3. **Embedding:** Each chunk sent to the HF Inference API → stored in `chunk_embeddings`, tagged with `model_name`.
+3. **Embedding:** Each chunk is sent to Cohere Embed with `input_type=search_document` → stored in `chunk_embeddings`, tagged with `model_name`.
 4. **Retrieval:** Query embedded → `pgvector` cosine similarity search, filtered by the caller's department(s) via RLS, top-k returned.
 5. **Generation:** Retrieved chunks + query → Groq LLM → answer generated with citations back to source chunks.
 6. **Tracing:** Every stage's inputs, outputs, and timings logged to `traces`.
