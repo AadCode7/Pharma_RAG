@@ -10,6 +10,7 @@ class IngestRequest(BaseModel):
     existing_document_id: str | None = Field(default=None, alias="existingDocumentId")
     chunking_strategy: str = Field(default="fixed_size_v1", alias="chunkingStrategy")
     embedding_strategy: str = Field(default="bge_small", alias="embeddingStrategy")
+    index_graph: bool = Field(default=True, alias="indexGraph")
 
 
 class IngestResponse(BaseModel):
