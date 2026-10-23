@@ -137,4 +137,6 @@ This branch adds two selectable query strategies:
 
 Existing documents are not backfilled automatically. Republish each version that should become available to GraphRAG. If graph extraction fails, the successfully published vector index remains available and the manager UI reports the failure; check backend logs and republish to retry. Graph extraction adds Groq calls and can increase upload latency, especially for long documents.
 
+**Data handling note:** enabling graph indexing sends selected document passages (up to 2,600 characters per chunk, in small batches) to the configured Groq API for relationship extraction. Cohere is already used for embeddings, and selecting Cohere reranking sends retrieved query/passages to Cohere. Check your pharmaceutical-data, privacy, and vendor policies before sending confidential content to any hosted provider.
+
 Graph rows are attached to chunk IDs. The graph retrieval SQL function applies department-based visibility, active chunk checks, and the current document-version pointer before returning edges. Do not query graph tables directly from browser code.
