@@ -105,6 +105,7 @@ async function handleSubmit(e) {
     document.getElementById('view-trace-link').href = `/trace?requestId=${result.requestId}`;
     document.getElementById('query-result').hidden = false;
   } catch (err) {
+    renderGraphContext([]);
     document.getElementById('answer-text').textContent = `Something went wrong: ${err.message}`;
     document.getElementById('answer-documents').innerHTML = '';
     document.getElementById('query-result').hidden = false;
