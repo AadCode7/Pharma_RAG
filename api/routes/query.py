@@ -164,7 +164,7 @@ async def run_query(payload: QueryRequest, request: Request):
     # Always generate from the original question and actual source chunks, not
     # from a HyDE passage or free-form graph extraction output.
     t_gen = time.perf_counter()
-    generation = await generate_answer(payload.query, matches)
+    generation = await generate_answer(payload.query, matches, graph_context)
     latency["generation_ms"] = int((time.perf_counter() - t_gen) * 1000)
     latency["total_ms"] = int((time.perf_counter() - t0) * 1000)
 
