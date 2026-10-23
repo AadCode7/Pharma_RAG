@@ -138,3 +138,26 @@ utils/                               -- pure helpers (chunking, hashing)
 architecture.md
 progress.md
 ```
+
+
+---
+
+## 10. GraphRAG extension (feature/graphrag-hybrid-search)
+
+### Ingestion and schema
+
+Graph extraction runs after chunks and embeddings for a new version have been stored and the version published. It uses the configured Groq chat model to extract explicit subject–predicate–object triples in small chunk batches. A grounding validator discards relationships whose endpoints do not appear in the cited source chunk. Each relationship references its supporting `chunk_id`, so the generated graph can be traced back to real text.
+
+- `graph_entities`: shared, normalized entity nodes and entity types.
+- `graph_relationships`: typed subject/predicate/object edges, confidence, and supporting chunk.
+- `visible_graph_relationships(p_caller_id, p_limit)`: server-only, security-definer SQL function. It returns only edges sourced from active chunks of the current document version that the caller is allowed to read by department (or all departments for a manager).
+- `database/migrations/0004_graph_rag.sql`: creates the graph schema, indexes, RLS, grants, and permission-filtered RPC.
+
+Graph indexing is enabled by default on the Knowledge Base upload form and can be disabled per version. A graph-extraction failure is reported separately and does not invalidate the successfully stored vector version. Existing documents must be republished to populate graph relationships.
+
+### Query strategies
+
+1. **GraphRAG**: resolve entities mentioned in the question, perform bounded graph-neighbor expansion (up to two hops), rank relationships by graph distance and lexical overlap, and use only their cited source chunks as answer context.
+2. **GraphRAG + Hybrid Vector Search**: run the same graph retrieval and the existing dense + BM25 hybrid retriever, then fuse the two candidate lists with Reciprocal Rank Fusion. The existing reranking selector is still applied afterward.
+
+The query UI displays graph triples only when their supporting source chunks are among the final answer context. Pipeline traces include graph counts and the relationships used. The graph contains extracted hypotheses that are validated against entity mentions; it is still an aid to retrieval, not a source of standalone medical truth.
