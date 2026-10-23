@@ -5,7 +5,7 @@
 Build a Retrieval-Augmented Generation system for a pharmaceutical company, where **data governance and evaluability are first-class requirements**, not add-ons. The project is delivered in two phases:
 
 - **V1 (Baseline):** Fixed-size chunking, single embedding model, single retrieval method, no reranking. Full end-to-end pipeline with tracing and an evaluation framework wired in from day one, even before a golden eval set exists.
-- **V2 (Experimentation):** Multiple chunking strategies, multiple embedding models, hybrid retrieval (dense + BM25), and reranking (RRF, Cohere Rerank, cross-encoder) — all benchmarked against the same eval harness so improvements over V1 are measurable, not assumed.
+- **V2 (Experimentation):** Multiple chunking strategies, dense/BM25 hybrid retrieval, Cohere reranking, Groq LLM reranking, and GraphRAG with optional hybrid vector search — benchmarked against a common evaluation set so improvements are measured, not assumed.
 
 Standing requirement across both phases: the knowledge base must stay current (manual upload + S3 sync, no stale data ever served to retrieval) and access to documents must be governed by department-based RBAC enforced at the database layer.
 
