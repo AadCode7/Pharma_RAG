@@ -2,7 +2,7 @@
 
 > Review this file at the start of every session before making changes, so decisions aren't re-litigated and nothing gets lost between sessions.
 
-## Current Status: V1 rewritten in Python/FastAPI, multi-page app with email/password + Google auth. User independently fixed PDF ingestion + HF endpoint; this session fixed the resulting orphaned-embeddings bug and added manager document deletion. Not yet deployed or tested against live services.
+## Current Status: GraphRAG + GraphRAG/hybrid retrieval added on feature/graphrag-hybrid-search; pending migration, unit-test, and live integration verification.
 
 ---
 
@@ -177,3 +177,26 @@ Same sandbox network limitation as before — no access to huggingface.co, groq.
 3. Smoke-test the full pipeline end to end locally (`uvicorn api.main:app --reload`) before deploying.
 4. Deploy to Vercel; if the Python + static-files combination misbehaves, fall back per README §4.
 5. Report back any errors hit during setup so they get logged here before moving on to V2 or the eval harness.
+
+
+---
+
+## GraphRAG implementation — feature/graphrag-hybrid-search (2026-10-23)
+
+### Added to this branch
+
+- Created `database/migrations/0004_graph_rag.sql`: graph entity/relationship tables, indexes, RLS, service-role grants, and a `visible_graph_relationships` RPC. The RPC enforces caller department access, active chunks, active documents, and the current-version pointer before returning graph evidence.
+- Added `api/services/graph_service.py`: Groq-based relationship extraction in bounded batches, conservative entity-grounding checks, graph upserts, query entity matching, two-hop traversal, lexical fallback, and RRF fusion.
+- Added **GraphRAG** and **GraphRAG + Hybrid Vector Search** to the retrieval strategy registry and query dispatcher. The hybrid mode combines graph ranking with the existing dense + BM25 hybrid retriever and RRF, while the standard reranking selector still runs afterward.
+- Added a default-on graph indexing checkbox to the manager Knowledge Base upload page. Ingestion reports whether graph indexing was completed, skipped, or failed. A graph-indexing failure is logged and reported without discarding a successfully published vector version.
+- Added a graph evidence panel to Query results and graph statistics/relationships to pipeline traces.
+- Added offline tests for graph ranking, source-grounding validation, and RRF fusion.
+
+### Deployment steps and verification status
+
+1. Apply `database/migrations/0004_graph_rag.sql` in the Supabase SQL editor before querying with either GraphRAG strategy.
+2. Redeploy this branch with `GROQ_API_KEY` and `COHERE_API_KEY` configured.
+3. Republish existing documents with graph indexing enabled; old versions are not auto-backfilled.
+4. Run `python -m unittest discover -s tests`, then smoke-test an upload and a query using each of the two new strategies.
+
+**Not yet verified:** no runtime environment with the repository dependencies and live Supabase/Groq/Cohere credentials was available during the GitHub edits. The new unit tests have been committed but have not been executed here; treat the feature as implemented but pending runtime verification. Graph indexing is synchronous and adds model requests during upload, so long documents may require an environment with adequate request timeouts.
