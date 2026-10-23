@@ -86,7 +86,7 @@ as $$
   query_terms as (
     select distinct term
     from normalized_query q
-    cross join lateral unnest(string_to_array(q.value, ' ')) as term
+    cross join lateral unnest(string_to_array(q.value, ' ')) as terms(term)
     where length(term) >= 4
       and term not in ('what','when','where','which','that','this','with','from','does','have','will','would','could','should','tell','about','into','your','their','them','then','than')
   ),
