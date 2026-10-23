@@ -14,7 +14,7 @@
       <label class="strategy-field">
         <span class="strategy-label">Retrieval strategy</span>
         <select id="retrieval-strategy" name="retrievalStrategy"></select>
-        <span class="strategy-help">Controls how candidate chunks are found. HyDE is included here because it changes the retrieval query before search.</span>
+        <span class="strategy-help">Choose dense, lexical, hybrid, or graph-based retrieval. GraphRAG follows relationships extracted from visible documents; the hybrid graph mode also combines vector and BM25 results.</span>
       </label>
 
       <label class="strategy-field">
@@ -33,6 +33,11 @@
     <div class="answer-block">
       <p class="label">Answer <span class="label-note">from retrieved context only</span></p>
       <p id="answer-text" class="answer-text"></p>
+    </div>
+    <div id="graph-context-panel" class="graph-context-panel" hidden>
+      <p class="label">Graph relationships used</p>
+      <p class="graph-context-help">Entity relationships below are linked to the source passages used for this answer.</p>
+      <ul id="graph-context-list" class="graph-context-list"></ul>
     </div>
     <div class="sources-inline">
       <p class="label">Source documents</p>
