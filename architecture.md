@@ -161,3 +161,8 @@ Graph indexing is enabled by default on the Knowledge Base upload form and can b
 2. **GraphRAG + Hybrid Vector Search**: run the same graph retrieval and the existing dense + BM25 hybrid retriever, then fuse the two candidate lists with Reciprocal Rank Fusion. The existing reranking selector is still applied afterward.
 
 The query UI displays graph triples only when their supporting source chunks are among the final answer context. Pipeline traces include graph counts and the relationships used. The graph contains extracted hypotheses that are validated against entity mentions; it is still an aid to retrieval, not a source of standalone medical truth.
+
+
+### GraphRAG data handling
+
+Graph indexing sends bounded source passages to the configured Groq API for relation extraction. This is a hosted inference call, not local inference; organizations must approve it under their pharmaceutical-data and vendor policies before enabling graph indexing on confidential material.
