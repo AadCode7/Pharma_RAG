@@ -326,17 +326,19 @@ def _read_extraction_cache(service: Any, units: list[dict[str, Any]]) -> dict[st
 def _write_extraction_cache(
     service: Any, units: list[dict[str, Any]], extracted_by_ref: dict[int, list[dict[str, Any]]]
 ) -> None:
-    rows = []
+    rows_by_hash: dict[str, dict[str, Any]] = {}
     for unit in units:
+        source_hash = str(unit["source_hash"])
         relationships = extracted_by_ref.get(int(unit["chunk_ref"]), [])
         # The unit reference is local to a single ingestion run; don't persist it.
         cached = [{key: value for key, value in row.items() if key != "chunk_ref"} for row in relationships]
-        rows.append({
-            "source_hash": unit["source_hash"],
+        rows_by_hash[source_hash] = {
+            "source_hash": source_hash,
             "model_name": settings.groq_model,
             "prompt_version": GRAPH_EXTRACTION_PROMPT_VERSION,
             "relationships": cached,
-        })
+        }
+    rows = list(rows_by_hash.values())
     if not rows:
         return
     try:
@@ -443,16 +445,24 @@ async def index_document_graph(chunks: list[dict[str, Any]]) -> dict[str, int]:
             if len(rule_results[int(unit["chunk_ref"])]) < 3
         ]
         llm_results: dict[int, list[dict[str, Any]]] = defaultdict(list)
+        retry_later_refs: set[int] = set()
         for offset in range(0, len(llm_units), EXTRACTION_BATCH_SIZE):
             batch = llm_units[offset:offset + EXTRACTION_BATCH_SIZE]
             try:
                 extracted = await _extract_relationship_batch(batch)
-            except UpstreamServiceError:
-                if not any(rule_results[int(unit["chunk_ref"])] for unit in batch):
+            except UpstreamServiceError as exc:
+                has_local_results = any(rule_results[int(unit["chunk_ref"])] for unit in batch)
+                is_rate_limited = "Graph extraction failed (429)" in str(exc)
+                if not has_local_results and not is_rate_limited:
                     raise
+                if is_rate_limited:
+                    retry_later_refs.update(
+                        int(unit["chunk_ref"]) for unit in batch
+                        if not rule_results[int(unit["chunk_ref"])]
+                    )
                 logger.warning(
-                    "Groq graph extraction unavailable; using validated local relation patterns for %d unit(s)",
-                    len(batch),
+                    "Groq graph extraction unavailable; using local results where possible for %d unit(s): %s",
+                    len(batch), exc,
                 )
                 continue
             allowed_refs = {int(unit["chunk_ref"]) for unit in batch}
@@ -470,9 +480,12 @@ async def index_document_graph(chunks: list[dict[str, Any]]) -> dict[str, int]:
             # and database upserts still deduplicate before persistence.
             extracted_by_hash[str(unit["source_hash"])] = merged
         # Persist only missing-unit outputs; cache failure never blocks indexing.
-        _write_extraction_cache(service, missing, {
+        cacheable_units = [
+            unit for unit in missing if int(unit["chunk_ref"]) not in retry_later_refs
+        ]
+        _write_extraction_cache(service, cacheable_units, {
             int(unit["chunk_ref"]): extracted_by_hash.get(str(unit["source_hash"]), [])
-            for unit in missing
+            for unit in cacheable_units
         })
 
         all_valid: list[dict[str, Any]] = []
