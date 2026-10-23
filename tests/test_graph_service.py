@@ -9,7 +9,7 @@ os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("COHERE_API_KEY", "test-cohere-key")
 
 from api.services.graph_service import (
-    _build_extraction_units, _rank_graph_edges, _validate_extracted_relationships, fuse_rankings_rrf, normalize_name,
+    _build_extraction_units, _rank_graph_edges, _rule_based_relationships, _validate_extracted_relationships, fuse_rankings_rrf, normalize_name,
 )
 
 
@@ -90,6 +90,16 @@ class GraphServiceTests(unittest.TestCase):
         self.assertEqual(len(units), 2)
         self.assertEqual(units[0]["chunk_id"], "child-1")
         self.assertIn("Equipment A must be calibrated", units[0]["content"])
+
+
+    def test_local_patterns_extract_explicit_relations_without_llm(self):
+        unit = {
+            "chunk_ref": 4,
+            "content": "Metformin may cause nausea. Calibration must be completed before release.",
+        }
+        relations = _rule_based_relationships(unit)
+        self.assertTrue(any(r["subject"] == "Metformin" and r["object"].lower() == "nausea" for r in relations))
+        self.assertTrue(all(r["evidence_quote"] in unit["content"] for r in relations))
 
     def test_relationship_validation_requires_verbatim_evidence_quote(self):
         batch = [{"chunk_ref": 0, "chunk_id": "child-1", "content": "Metformin may cause nausea."}]
