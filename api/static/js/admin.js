@@ -139,6 +139,7 @@ async function handleUploadSubmit(e) {
   const departmentIds = Array.from(document.querySelectorAll('input[name="dept"]:checked')).map((i) => i.value);
   const chunkingStrategy = document.getElementById('chunking-strategy').value;
   const embeddingStrategy = document.getElementById('embedding-strategy').value;
+  const indexGraph = document.getElementById('graph-index-enabled').checked;
 
   if (!isImplemented('chunking', chunkingStrategy) || !isImplemented('embedding', embeddingStrategy)) {
     statusEl.hidden = false;
@@ -192,12 +193,21 @@ async function handleUploadSubmit(e) {
         existingDocumentId,
         chunkingStrategy,
         embeddingStrategy,
+        indexGraph,
       }),
     });
 
     statusEl.hidden = false;
-    statusEl.className = 'auth-status';
-    statusEl.textContent = `Published v${result.versionNumber} — ${result.chunksCreated} chunks created using ${formatStrategy(result.chunkingStrategy)} and ${formatStrategy(result.embeddingStrategy)}.`;
+    statusEl.className = result.graphIndexingStatus === 'failed' ? 'auth-status is-error' : 'auth-status';
+    let graphSummary = 'Graph indexing skipped.';
+    if (result.graphIndexingStatus === 'completed') {
+      graphSummary = result.graphRelationships > 0
+        ? `Graph index: ${result.graphRelationships} relationships across ${result.graphEntities} entities.`
+        : 'Graph indexing completed, but no supported relationships were extracted from this version.';
+    } else if (result.graphIndexingStatus === 'failed') {
+      graphSummary = result.graphIndexingError || 'Graph indexing failed; normal vector search is still available.';
+    }
+    statusEl.textContent = `Published v${result.versionNumber} — ${result.chunksCreated} chunks created using ${formatStrategy(result.chunkingStrategy)} and ${formatStrategy(result.embeddingStrategy)}. ${graphSummary}`;
 
     document.getElementById('upload-form').reset();
     document.getElementById('upload-existing-doc-id').value = '';
