@@ -2,6 +2,8 @@
 -- Apply after 0004_graph_rag.sql. The RPC retains the same access/current-version
 -- filters, but returns the full parent passage for Parent/Child chunks.
 
+alter table public.chunks add column if not exists parent_content text;
+
 create table if not exists public.graph_extraction_cache (
   source_hash text not null,
   model_name text not null,
