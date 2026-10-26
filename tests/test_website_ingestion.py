@@ -27,12 +27,12 @@ class WebsiteURLValidationTests(unittest.TestCase):
             "http://169.254.169.254/latest/meta-data/", "http://service.local/",
             "http://internal/", "http://[::1]/",
         ):
-            with self.subTest(value=value), self.assertRaises(ValueError):
+            with self.subTest(value=value), self.assertRaises(BadRequestError):
                 normalize_website_url_syntax(value)
 
     def test_rejects_credentials_and_nonstandard_ports(self):
         for value in ("https://name:secret@example.com", "https://example.com:8443/", "http://example.com:443/"):
-            with self.subTest(value=value), self.assertRaises(ValueError):
+            with self.subTest(value=value), self.assertRaises(BadRequestError):
                 normalize_website_url_syntax(value)
 
 

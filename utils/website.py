@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import re
-from urllib.parse import urlsplit
-
 from api.models.chunk import ChunkDraft
 
 _HEADING_RE = re.compile(r"(?m)^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
@@ -11,17 +9,6 @@ _HEADING_RE = re.compile(r"(?m)^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
 
 def _safe_metadata_value(value: str, limit: int) -> str:
     return re.sub(r"[\r\n\t]+", " ", value or "").strip()[:limit]
-
-
-def _section_for_offset(headings: list[tuple[int, int, str]], offset: int) -> str:
-    active: list[tuple[int, str]] = []
-    for position, level, title in headings:
-        if position > offset:
-            break
-        while active and active[-1][0] >= level:
-            active.pop()
-        active.append((level, title))
-    return " > ".join(title for _, title in active)
 
 
 def enrich_website_chunks(

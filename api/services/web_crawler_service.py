@@ -239,7 +239,7 @@ async def crawl_website(url: str) -> CrawledWebsite:
 
     try:
         async with AsyncWebCrawler(config=browser_config, verbose=False) as crawler:
-            crawler.set_hook("on_page_context_created", configure_page_routes)
+            crawler.crawler_strategy.set_hook("on_page_context_created", configure_page_routes)
             result = await asyncio.wait_for(
                 crawler.arun(url=normalized_url, config=run_config),
                 timeout=max(8, min(int(settings.crawl4ai_timeout_seconds), 45)) + 5,
