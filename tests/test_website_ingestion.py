@@ -1,6 +1,7 @@
 import unittest
 
 from api.models.chunk import ChunkDraft
+from exception.exceptions import BadRequestError
 from api.services.web_crawler_service import normalize_website_url_syntax
 from utils.website import enrich_website_chunks
 
@@ -17,7 +18,7 @@ class WebsiteURLValidationTests(unittest.TestCase):
 
     def test_rejects_non_http_schemes(self):
         for value in ("file:///etc/passwd", "ftp://example.com/file", "javascript:alert(1)"):
-            with self.subTest(value=value), self.assertRaises(ValueError):
+            with self.subTest(value=value), self.assertRaises(BadRequestError):
                 normalize_website_url_syntax(value)
 
     def test_rejects_local_and_private_destinations(self):

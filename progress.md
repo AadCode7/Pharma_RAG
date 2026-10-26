@@ -242,3 +242,23 @@ Same sandbox network limitation as before — no access to huggingface.co, groq.
 
 
 Validation note: five isolated behavioral checks for the OCR cleanup logic passed (Unicode/invisible characters, wrapped-word repair, headings/lists/tables, plain-text line breaks and empty input). The committed unittest module and full repository suite were not executable in this editing runtime because the GitHub repository could not be cloned; live Supabase/Cohere/Groq integration remains unverified.
+
+
+---
+
+## Website URL ingestion — feature/crawl4ai-website-ingestion (2026-10-26)
+
+### Implemented on this feature branch
+
+- Added a Website URL field to the manager Knowledge Base form. It is mutually exclusive with file uploads and pasted text, and can use the page title as the document title when no title is entered.
+- Added a lazy Crawl4AI 0.9.5 + Playwright Chromium website extractor, with JavaScript rendering, Markdown extraction, request timeouts, output-size limits, and clear errors for unavailable browsers or blocked/authenticated pages.
+- Added URL syntax, hostname, port, literal-IP and DNS-address checks; a Playwright context route hook re-checks navigation/resource/redirect requests to reduce SSRF exposure.
+- Added Unicode/whitespace normalization and chunk metadata containing final source URL, page title, heading breadcrumb, and sequential chunk index/count. Parent/Child parent context carries source/title/section provenance too.
+- Persisted the final website URL in `documents.source_uri`; no SQL migration is required. Website version storage uses a `.website.txt` suffix.
+- Added isolated tests for URL validation and sequential/section metadata. Existing text, Markdown, PDF, and Tesseract image OCR flows continue through the prior path.
+
+### Runtime and verification notes
+
+- Local setup: install requirements, then run `crawl4ai-setup` or `python -m playwright install chromium`.
+- Serverless deploys need a provisioned Chromium binary or the trusted remote CDP URL setting `CRAWL4AI_CDP_URL`. The browser is not automatically downloaded merely by pip installing requirements.
+- Full Python test-suite execution and a live public website → Supabase → query smoke test still need verification against the deployment environment.

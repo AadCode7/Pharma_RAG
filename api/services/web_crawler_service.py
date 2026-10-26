@@ -65,11 +65,6 @@ def normalize_website_url_syntax(url: str) -> str:
         raise BadRequestError("Website URLs must not contain usernames or passwords.")
 
     hostname = hostname.rstrip(".").lower()
-    try:
-        hostname = hostname.encode("idna").decode("ascii")
-    except UnicodeError as exc:
-        raise BadRequestError("Website hostname is not valid.") from exc
-
     if hostname == "localhost" or hostname.endswith(BLOCKED_HOST_SUFFIXES):
         raise BadRequestError("Local and internal hostnames cannot be crawled.")
     if len(hostname) > 253:
@@ -84,6 +79,10 @@ def normalize_website_url_syntax(url: str) -> str:
         if not address.is_global:
             raise BadRequestError("Private, loopback, link-local, and reserved IP addresses cannot be crawled.")
     else:
+        try:
+            hostname = hostname.encode("idna").decode("ascii")
+        except UnicodeError as exc:
+            raise BadRequestError("Website hostname is not valid.") from exc
         labels = hostname.split(".")
         if len(labels) < 2 or any(
             not label or len(label) > 63 or label.startswith("-") or label.endswith("-")
@@ -110,6 +109,10 @@ def _require_public_ip(value: str) -> None:
         address = ipaddress.ip_address(value)
     except ValueError as exc:
         raise BadRequestError("Website hostname resolved to an invalid IP address.") from exc
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        if not address.ipv4_mapped.is_global:
+            raise BadRequestError("Website hostname resolved to a private or reserved IP address.")
+        return
     if not address.is_global:
         raise BadRequestError("Website hostname resolved to a private or reserved IP address.")
 

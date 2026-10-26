@@ -50,6 +50,8 @@ utils/                             # pure helpers (chunking, hashing)
 python -m venv .venv
 source .venv/bin/activate        # .venv\Scripts\activate on Windows
 pip install -r requirements.txt
+crawl4ai-setup                    # installs Playwright Chromium for website ingestion
+# If setup fails, try: python -m playwright install chromium
 cp .env.example .env             # then fill in your keys
 uvicorn api.main:app --reload
 ```
@@ -93,6 +95,8 @@ likely fix is serving `/static` as a separate Vercel static route instead of
 through the FastAPI app, or moving to a platform with native long-running
 Python support (Render, Fly.io, Railway) if Vercel's Python runtime proves
 too constrained for this app's needs.
+
+**Website ingestion runtime note:** `crawl4ai` is installed with `requirements.txt`, but the Chromium browser binary is a separate install. For a serverless deploy that cannot include and launch Chromium, configure `CRAWL4AI_CDP_URL` to a trusted remote Playwright Chromium endpoint. Otherwise provision Chromium in your deployment build and verify function size, memory, and timeout limits before enabling website uploads. Normal file, PDF, image OCR, and pasted-text paths do not depend on Chromium.
 
 ## 5. What's implemented in V1
 
@@ -139,3 +143,14 @@ Existing documents are not backfilled automatically. Republish each version that
 **Data handling note:** enabling graph indexing sends selected document passages (up to 2,600 characters per chunk, in small batches) to the configured Groq API for relationship extraction. Cohere is already used for embeddings, and selecting Cohere reranking sends retrieved query/passages to Cohere. Check your pharmaceutical-data, privacy, and vendor policies before sending confidential content to any hosted provider.
 
 Graph rows are attached to chunk IDs. The graph retrieval SQL function applies department-based visibility, active chunk checks, and the current document-version pointer before returning edges. Do not query graph tables directly from browser code.
+
+
+## Website URL ingestion
+
+Managers can enter one public page URL in the Knowledge Base form instead of uploading a file or pasting text. Crawl4AI 0.9.5 uses headless Playwright Chromium to render JavaScript-driven pages and convert the content to structured Markdown. The result is whitespace-normalized and sent through the existing selected chunking, Cohere embedding, versioning, and optional GraphRAG pipeline.
+
+Website chunks include the final source URL, page title, detected heading breadcrumb, and 1-based chunk position/count. The page URL is also stored in the existing `documents.source_uri` field; no database migration is required. Very long pages are capped at 120,000 characters and the upload response notes when truncation occurred. This is one page per upload, not a recursive website-wide crawl.
+
+The crawler rejects non-HTTP(S) URLs, embedded credentials, nonstandard ports, localhost/internal hostnames, private/reserved literal IPs and DNS results. Browser requests and redirects are also checked. This is application-level egress protection; production deployments should additionally restrict outbound network access at the hosting/network layer. Crawl only public content you are authorized to ingest, and review website terms and robots guidance.
+
+Local setup requires `crawl4ai-setup` (or `python -m playwright install chromium`) after installing requirements. On Vercel or another serverless host, provide a compatible Chromium build or a trusted remote CDP endpoint through `CRAWL4AI_CDP_URL`. Website ingestion returns a clear upstream error if Crawl4AI/Chromium is unavailable; existing ingestion methods remain available.

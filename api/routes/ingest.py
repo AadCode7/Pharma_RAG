@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request
 
+from exception.exceptions import BadRequestError
 from api.services.ingestion_service import ingest_document
 from api.services.web_crawler_service import crawl_website
 from api.services.rbac_service import require_manager, require_user
@@ -17,23 +18,22 @@ async def ingest(payload: IngestRequest, request: Request):
     text = payload.text
     extraction_source = payload.extraction_source
     source_url = None
+    website_truncated = False
 
     if payload.website_url:
         if text.strip():
-            from exception.exceptions import BadRequestError
             raise BadRequestError("Provide either a website URL or pasted/uploaded text, not both.")
         crawled = await crawl_website(payload.website_url)
         source_url = crawled.url
+        website_truncated = crawled.truncated
         extraction_source = "website"
         text = crawled.markdown
         if not title:
             title = crawled.title or source_url
     elif extraction_source == "website":
-        from exception.exceptions import BadRequestError
         raise BadRequestError("A website URL is required for website ingestion.")
 
     if not title:
-        from exception.exceptions import BadRequestError
         raise BadRequestError("Document title is required.")
 
     result = await ingest_document(
@@ -63,4 +63,5 @@ async def ingest(payload: IngestRequest, request: Request):
         "graphIndexingError": result.get("graph_indexing_error"),
         "extractionSource": result["extraction_source"],
         "sourceUrl": result.get("source_url"),
+        "websiteTruncated": website_truncated,
     }
