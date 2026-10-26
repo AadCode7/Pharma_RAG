@@ -347,6 +347,9 @@ async function getOcrWorker(progressCallback) {
   if (!ocrWorkerPromise) {
     ocrWorkerPromise = loadTesseractLibrary()
       .then((tesseract) => tesseract.createWorker('eng', 1, {
+        // Keep trained data on the maintained jsDelivr data package rather
+        // than relying on the legacy tessdata.projectnaptha.com default.
+        langPath: 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int',
         logger: (message) => {
           if (typeof activeOcrProgress === 'function') activeOcrProgress(message);
         },
