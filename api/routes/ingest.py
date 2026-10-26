@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request
 
 from api.services.ingestion_service import ingest_document
+from api.services.web_crawler_service import crawl_website
 from api.services.rbac_service import require_manager, require_user
 from schemas.ingest import IngestRequest
 
@@ -12,16 +13,40 @@ async def ingest(payload: IngestRequest, request: Request):
     user_id, _user_client, _token = require_user(request)
     require_manager(user_id)
 
+    title = payload.title.strip()
+    text = payload.text
+    extraction_source = payload.extraction_source
+    source_url = None
+
+    if payload.website_url:
+        if text.strip():
+            from exception.exceptions import BadRequestError
+            raise BadRequestError("Provide either a website URL or pasted/uploaded text, not both.")
+        crawled = await crawl_website(payload.website_url)
+        source_url = crawled.url
+        extraction_source = "website"
+        text = crawled.markdown
+        if not title:
+            title = crawled.title or source_url
+    elif extraction_source == "website":
+        from exception.exceptions import BadRequestError
+        raise BadRequestError("A website URL is required for website ingestion.")
+
+    if not title:
+        from exception.exceptions import BadRequestError
+        raise BadRequestError("Document title is required.")
+
     result = await ingest_document(
-        title=payload.title,
-        text=payload.text,
+        title=title,
+        text=text,
         department_ids=payload.department_ids,
         existing_document_id=payload.existing_document_id,
         user_id=user_id,
         chunking_strategy=payload.chunking_strategy,
         embedding_strategy=payload.embedding_strategy,
         index_graph=payload.index_graph,
-        extraction_source=payload.extraction_source,
+        extraction_source=extraction_source,
+        source_url=source_url,
     )
 
     return {
@@ -37,4 +62,5 @@ async def ingest(payload: IngestRequest, request: Request):
         "graphRelationships": result["graph_relationships"],
         "graphIndexingError": result.get("graph_indexing_error"),
         "extractionSource": result["extraction_source"],
+        "sourceUrl": result.get("source_url"),
     }
