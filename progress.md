@@ -219,3 +219,23 @@ Same sandbox network limitation as before — no access to huggingface.co, groq.
 - Added migration `database/migrations/0005_graph_rag_quality.sql`. Apply it after `0004_graph_rag.sql` to create the cache table and update the permission-scoped graph RPC to return Parent/Child parent context.
 - Changed the query strategy selector default to **GraphRAG + Hybrid Vector Search (Recommended)**. Dense/BM25 retrieval remains fused with graph candidates, so missing graph edges do not prevent source chunks from being retrieved.
 - Added offline tests for parent-context deduplication, explicit local relation extraction, and evidence-quote validation. These tests have not been run in this editing environment; deploy and run the full test suite before relying on production behavior.
+
+
+---
+
+## Tesseract image OCR — feature/tesseract-image-ocr (2026-10-26)
+
+### Implemented on the feature branch
+
+- Added JPG/JPEG, PNG and WebP support to the manager Knowledge Base uploader while retaining the existing text, Markdown and selectable-text PDF paths.
+- Added lazy browser-side Tesseract.js 5 loading and a reusable English OCR worker. The image is preprocessed on a canvas (white background, grayscale, mild contrast, bounded resizing) and paragraph boundaries from OCR output are retained.
+- Added extraction-source validation to the ingest request. Image OCR text enters the same versioned ingestion pipeline, selected chunking strategy, Cohere embeddings and optional GraphRAG path as other uploads; image versions use an .ocr.txt storage suffix without a database migration.
+- Added normalize_extracted_text() to clean Unicode/whitespace artifacts, remove NUL and invisible characters, conservatively repair OCR line-wrap hyphenation, and join wrapped prose lines while preserving detectable headings, list items, table-like rows and paragraph breaks.
+- Added offline unit tests for text cleanup, wrapped-word repair, layout preservation and non-image line preservation.
+- Updated the Knowledge Base upload guidance, README and architecture documentation.
+
+### Validation and deployment notes
+
+- The feature is isolated on feature/tesseract-image-ocr; main is unchanged.
+- No new Python dependency or native OS package is required. The browser downloads Tesseract.js and English trained data on the first image upload, so the manager's browser needs access to those CDNs. The image bytes remain in the browser; extracted text is sent to the application for indexing.
+- Automated tests and an end-to-end upload/query against live Supabase, Cohere and Groq credentials still need to be run before merging. Scanned-PDF OCR and non-English OCR are not included.

@@ -9,6 +9,7 @@ from exception.exceptions import BadRequestError, NotFoundError
 from logger.logger import get_logger
 from utils.hashing import sha256_hash
 from utils.text import (
+    normalize_extracted_text,
     chunk_fixed_size,
     chunk_parent_child,
     chunk_recursive_character,
@@ -29,6 +30,7 @@ async def ingest_document(
     chunking_strategy: str = "fixed_size_v1",
     embedding_strategy: str = "bge_small",
     index_graph: bool = True,
+    extraction_source: str = "text",
 ) -> dict:
     """Handles both a brand new document and a new version of an existing
     one.
@@ -46,9 +48,9 @@ async def ingest_document(
     """
     # PostgreSQL text columns reject NUL characters, which can appear when a
     # binary file is decoded incorrectly by a client.
-    text = text.replace("\x00", "")
+    text = normalize_extracted_text(text, extraction_source=extraction_source)
     if not text.strip():
-        raise BadRequestError("Document text is empty after removing unsupported characters")
+        raise BadRequestError("Document text is empty after extraction cleanup")
 
     service = get_service_client()
     document_id = existing_document_id
@@ -128,7 +130,8 @@ async def ingest_document(
         # NOTE (untested, see progress.md): supabase-py's storage upload signature
         # has shifted across versions — verify this call against your installed
         # `supabase` package version before relying on it.
-        storage_path = f"{document_id}/v{version_number}-{uuid.uuid4()}.txt"
+        storage_suffix = "ocr.txt" if extraction_source == "image" else "txt"
+        storage_path = f"{document_id}/v{version_number}-{uuid.uuid4()}.{storage_suffix}"
         service.storage.from_("documents").upload(
             storage_path, text.encode("utf-8"), {"content-type": "text/plain"}
         )
@@ -225,6 +228,7 @@ async def ingest_document(
             "graph_entities": graph_entities,
             "graph_relationships": graph_relationships,
             "graph_indexing_error": graph_error,
+            "extraction_source": extraction_source,
         }
 
     except Exception:

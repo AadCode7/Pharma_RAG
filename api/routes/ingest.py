@@ -21,6 +21,7 @@ async def ingest(payload: IngestRequest, request: Request):
         chunking_strategy=payload.chunking_strategy,
         embedding_strategy=payload.embedding_strategy,
         index_graph=payload.index_graph,
+        extraction_source=payload.extraction_source,
     )
 
     return {
@@ -35,4 +36,5 @@ async def ingest(payload: IngestRequest, request: Request):
         "graphEntities": result["graph_entities"],
         "graphRelationships": result["graph_relationships"],
         "graphIndexingError": result.get("graph_indexing_error"),
+        "extractionSource": result["extraction_source"],
     }
