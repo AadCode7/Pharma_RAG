@@ -14,6 +14,8 @@ import socket
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
 
+import httpx
+
 from config.settings import settings
 from exception.exceptions import BadRequestError, UpstreamServiceError
 from logger.logger import get_logger
@@ -184,92 +186,204 @@ def _extract_title(result: object, requested_url: str) -> str:
     return urlsplit(requested_url).hostname or requested_url
 
 
+def _parse_cloud_payload(payload: object, fallback_url: str) -> tuple[str, str, str]:
+    """Extract title, final URL and Markdown from Crawl4AI Cloud's JSON response."""
+    if not isinstance(payload, dict):
+        raise UpstreamServiceError("Crawl4AI Cloud returned an invalid response.")
+
+    markdown = payload.get("markdown")
+    metadata = payload.get("metadata")
+    if not isinstance(markdown, str) or not markdown.strip():
+        result = payload.get("result")
+        if isinstance(result, dict):
+            markdown = result.get("markdown")
+            metadata = result.get("metadata")
+    if not isinstance(markdown, str) or not markdown.strip():
+        raise UpstreamServiceError(
+            "Crawl4AI Cloud returned no readable page content. The page may be blocked or require authentication."
+        )
+
+    if not isinstance(metadata, dict):
+        metadata = {}
+    title = payload.get("title") or metadata.get("title") or metadata.get("og:title")
+    final_url = payload.get("url") or payload.get("final_url") or fallback_url
+    if not isinstance(final_url, str) or not final_url.strip():
+        final_url = fallback_url
+    if not isinstance(title, str) or not title.strip():
+        title = urlsplit(final_url).hostname or final_url
+    title = re.sub(r"\s+", " ", title).strip()[:200]
+    return title, final_url, markdown
+
+
+async def _crawl_with_cloud_api(url: str) -> tuple[str, str, str]:
+    """Crawl using Crawl4AI's hosted API, avoiding a local browser binary."""
+    timeout_seconds = max(10, min(int(settings.crawl4ai_api_timeout_seconds), 120))
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout_seconds),
+            follow_redirects=False,
+        ) as client:
+            response = await client.post(
+                "https://api.crawl4ai.com/scrape",
+                headers={"Authorization": f"Bearer {settings.crawl4ai_api_key.strip()}"},
+                json={
+                    "url": url,
+                    "format": "md",
+                    "parse": {"metadata": True},
+                },
+            )
+    except httpx.TimeoutException as exc:
+        raise UpstreamServiceError(
+            "Website extraction timed out while waiting for Crawl4AI Cloud. Retry the page or increase CRAWL4AI_API_TIMEOUT_SECONDS."
+        ) from exc
+    except httpx.RequestError as exc:
+        logger.error(f"Crawl4AI Cloud request failed: {type(exc).__name__}")
+        raise UpstreamServiceError(
+            "The website crawler service could not be reached. Retry in a moment."
+        ) from exc
+
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {}
+
+    if response.status_code == 401:
+        raise UpstreamServiceError(
+            "Crawl4AI Cloud rejected the API key. Check CRAWL4AI_API_KEY in the Vercel environment variables."
+        )
+    if response.status_code == 402:
+        raise UpstreamServiceError(
+            "Crawl4AI Cloud has no credits available. Check the Crawl4AI account usage or billing page."
+        )
+    if response.status_code == 403:
+        detail = ""
+        if isinstance(payload, dict):
+            detail = str(payload.get("error") or payload.get("detail") or "").lower()
+        if "blocked" in detail or "login-wall" in detail:
+            raise UpstreamServiceError(
+                "The website blocked automated crawling or requires authentication."
+            )
+        raise UpstreamServiceError(
+            "Crawl4AI Cloud denied this crawl. Check the API key and account access."
+        )
+    if response.status_code in {429, 503}:
+        raise UpstreamServiceError(
+            "Crawl4AI Cloud is temporarily rate-limited or busy. Please retry in a few seconds."
+        )
+    if response.status_code >= 400:
+        detail = ""
+        if isinstance(payload, dict):
+            detail = str(payload.get("error") or payload.get("detail") or "")
+        logger.warning(
+            f"Crawl4AI Cloud returned HTTP {response.status_code} for {url}: {detail[:180]}"
+        )
+        if response.status_code in {502, 504}:
+            raise UpstreamServiceError(
+                "The target website did not return usable content to Crawl4AI. It may be unavailable or blocking crawlers."
+            )
+        raise UpstreamServiceError(
+            "Crawl4AI Cloud could not extract this page. Check the URL and try again."
+        )
+
+    return _parse_cloud_payload(payload, url)
+
+
 async def crawl_website(url: str) -> CrawledWebsite:
     """Crawl one user-supplied URL into normalized Markdown for RAG."""
     dns_cache: dict[str, bool] = {}
     normalized_url = await validate_public_website_url(url, dns_cache)
-    try:
-        from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
-    except ImportError as exc:
-        raise UpstreamServiceError(
-            "Website crawling requires Crawl4AI. Install the requirements and run crawl4ai-setup, "
-            "or configure CRAWL4AI_CDP_URL for a remote Chromium browser."
-        ) from exc
 
-    async def configure_page_routes(page, context, **kwargs):
-        async def safe_route(route):
-            request_url = route.request.url
-            parsed_request = urlsplit(request_url)
-            if parsed_request.scheme in {"data", "blob", "about"} and not route.request.is_navigation_request():
-                await route.continue_()
-                return
-            try:
-                await validate_public_website_url(request_url, dns_cache)
-            except BadRequestError:
-                # Block unsafe redirects and subresource requests, not the whole browser context.
-                await route.abort("blockedbyclient")
-                return
-            except Exception:
-                await route.abort()
-                return
-            await route.continue_()
-
-        await context.route("**/*", safe_route)
-        return page
-
-    cdp_url = settings.crawl4ai_cdp_url.strip() or None
-    browser_config = BrowserConfig(
-        browser_type="chromium",
-        browser_mode="custom" if cdp_url else "dedicated",
-        headless=True,
-        cdp_url=cdp_url,
-        ignore_https_errors=False,
-        java_script_enabled=True,
-        accept_downloads=False,
-        verbose=False,
-    )
-    run_config = CrawlerRunConfig(
-        cache_mode=CacheMode.BYPASS,
-        excluded_tags=["script", "style", "noscript", "svg", "canvas", "nav", "footer", "form"],
-        word_count_threshold=3,
-        wait_until="domcontentloaded",
-        page_timeout=max(5, min(int(settings.crawl4ai_timeout_seconds), 45)) * 1000,
-        delay_before_return_html=0.2,
-        check_robots_txt=False,
-    )
-
-    try:
-        crawler = AsyncWebCrawler(config=browser_config, verbose=False)
-        # Register the egress guard before browser startup creates page contexts.
-        crawler.crawler_strategy.set_hook("on_page_context_created", configure_page_routes)
-        async with crawler:
-            result = await asyncio.wait_for(
-                crawler.arun(url=normalized_url, config=run_config),
-                timeout=max(8, min(int(settings.crawl4ai_timeout_seconds), 45)) + 5,
-            )
-    except asyncio.TimeoutError as exc:
-        raise UpstreamServiceError("Website extraction timed out. Try a faster page or retry later.") from exc
-    except BadRequestError:
-        raise
-    except Exception as exc:
-        logger.error(f"Crawl4AI failed for {normalized_url}: {exc}")
-        detail = str(exc).lower()
-        if "executable doesn't exist" in detail or "browser has not been installed" in detail or "chromium" in detail:
+    if settings.crawl4ai_api_key.strip():
+        # Serverless mode: the hosted crawler owns the browser; Chromium is not
+        # downloaded into or launched from the Vercel function.
+        title, final_url, extracted_markdown = await _crawl_with_cloud_api(normalized_url)
+    else:
+        try:
+            from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
+        except ImportError as exc:
             raise UpstreamServiceError(
-                "Chromium is not installed or unavailable on this deployment. Run crawl4ai-setup "
-                "and python -m playwright install chromium, or configure CRAWL4AI_CDP_URL."
+                "Website crawling needs either CRAWL4AI_API_KEY for Crawl4AI Cloud, "
+                "or the optional local package installed with 'pip install crawl4ai==0.9.5' "
+                "followed by 'crawl4ai-setup'."
             ) from exc
-        raise UpstreamServiceError("The website could not be extracted. Check that it is public and accessible, then retry.") from exc
 
-    if not getattr(result, "success", False):
-        message = str(getattr(result, "error_message", "") or "The crawler returned no result.")
-        logger.warning(f"Crawl4AI returned an unsuccessful result for {normalized_url}: {message}")
-        raise UpstreamServiceError("The website could not be extracted. It may block automated browsers or require authentication.")
+        async def configure_page_routes(page, context, **kwargs):
+            async def safe_route(route):
+                request_url = route.request.url
+                parsed_request = urlsplit(request_url)
+                if parsed_request.scheme in {"data", "blob", "about"} and not route.request.is_navigation_request():
+                    await route.continue_()
+                    return
+                try:
+                    await validate_public_website_url(request_url, dns_cache)
+                except BadRequestError:
+                    # Block unsafe redirects and subresource requests, not the whole browser context.
+                    await route.abort("blockedbyclient")
+                    return
+                except Exception:
+                    await route.abort()
+                    return
+                await route.continue_()
 
-    final_url = getattr(result, "url", None) or normalized_url
-    # Validate the final URL again before storing it as the durable source reference.
+            await context.route("**/*", safe_route)
+            return page
+
+        cdp_url = settings.crawl4ai_cdp_url.strip() or None
+        browser_config = BrowserConfig(
+            browser_type="chromium",
+            browser_mode="custom" if cdp_url else "dedicated",
+            headless=True,
+            cdp_url=cdp_url,
+            ignore_https_errors=False,
+            java_script_enabled=True,
+            accept_downloads=False,
+            verbose=False,
+        )
+        run_config = CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS,
+            excluded_tags=["script", "style", "noscript", "svg", "canvas", "nav", "footer", "form"],
+            word_count_threshold=3,
+            wait_until="domcontentloaded",
+            page_timeout=max(5, min(int(settings.crawl4ai_timeout_seconds), 45)) * 1000,
+            delay_before_return_html=0.2,
+            check_robots_txt=False,
+        )
+
+        try:
+            crawler = AsyncWebCrawler(config=browser_config, verbose=False)
+            # Register the egress guard before browser startup creates page contexts.
+            crawler.crawler_strategy.set_hook("on_page_context_created", configure_page_routes)
+            async with crawler:
+                result = await asyncio.wait_for(
+                    crawler.arun(url=normalized_url, config=run_config),
+                    timeout=max(8, min(int(settings.crawl4ai_timeout_seconds), 45)) + 5,
+                )
+        except asyncio.TimeoutError as exc:
+            raise UpstreamServiceError("Website extraction timed out. Try a faster page or retry later.") from exc
+        except BadRequestError:
+            raise
+        except Exception as exc:
+            logger.error(f"Crawl4AI failed for {normalized_url}: {exc}")
+            detail = str(exc).lower()
+            if "executable doesn't exist" in detail or "browser has not been installed" in detail or "chromium" in detail:
+                raise UpstreamServiceError(
+                    "Local Chromium is unavailable. Configure CRAWL4AI_API_KEY to use Crawl4AI Cloud "
+                    "(no local browser required), install Chromium with crawl4ai-setup, or configure CRAWL4AI_CDP_URL."
+                ) from exc
+            raise UpstreamServiceError("The website could not be extracted. Check that it is public and accessible, then retry.") from exc
+
+        if not getattr(result, "success", False):
+            message = str(getattr(result, "error_message", "") or "The crawler returned no result.")
+            logger.warning(f"Crawl4AI returned an unsuccessful result for {normalized_url}: {message}")
+            raise UpstreamServiceError("The website could not be extracted. It may block automated browsers or require authentication.")
+
+        final_url = getattr(result, "url", None) or normalized_url
+        title = _extract_title(result, final_url)
+        extracted_markdown = _extract_markdown(result)
+
+    # Validate the final URL before storing it as the durable source reference.
     final_url = await validate_public_website_url(final_url, dns_cache)
-    markdown = normalize_extracted_text(_extract_markdown(result), extraction_source="website")
+    markdown = normalize_extracted_text(extracted_markdown, extraction_source="website")
     if not markdown:
         raise BadRequestError("No readable page content was found. Try a public article or documentation page.")
     truncated = len(markdown) > MAX_WEBSITE_TEXT_CHARS
@@ -278,7 +392,7 @@ async def crawl_website(url: str) -> CrawledWebsite:
         boundary = candidate.rfind("\n")
         markdown = candidate[:boundary].rstrip() if boundary > MAX_WEBSITE_TEXT_CHARS * 0.75 else candidate.rstrip()
     return CrawledWebsite(
-        title=_extract_title(result, final_url),
+        title=title,
         url=final_url,
         markdown=markdown,
         truncated=truncated,
