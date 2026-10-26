@@ -12,8 +12,8 @@ for _name, _value in {
     os.environ.setdefault(_name, _value)
 
 from api.models.chunk import ChunkDraft
-from exception.exceptions import BadRequestError
-from api.services.web_crawler_service import normalize_website_url_syntax
+from exception.exceptions import BadRequestError, UpstreamServiceError
+from api.services.web_crawler_service import _parse_cloud_payload, normalize_website_url_syntax
 from utils.website import enrich_website_chunks
 
 
@@ -45,6 +45,35 @@ class WebsiteURLValidationTests(unittest.TestCase):
         for value in ("https://name:secret@example.com", "https://example.com:8443/", "http://example.com:443/"):
             with self.subTest(value=value), self.assertRaises(BadRequestError):
                 normalize_website_url_syntax(value)
+
+
+class Crawl4AICloudResponseTests(unittest.TestCase):
+    def test_parses_markdown_title_and_final_url(self):
+        title, final_url, markdown = _parse_cloud_payload(
+            {
+                "title": "Quotes to Scrape",
+                "url": "https://quotes.toscrape.com/",
+                "markdown": "# Quotes\nA quote.",
+                "metadata": {"title": "Ignored metadata title"},
+            },
+            "https://example.com/",
+        )
+        self.assertEqual(title, "Quotes to Scrape")
+        self.assertEqual(final_url, "https://quotes.toscrape.com/")
+        self.assertEqual(markdown, "# Quotes\nA quote.")
+
+    def test_uses_metadata_and_fallback_url_when_optional_fields_are_missing(self):
+        title, final_url, markdown = _parse_cloud_payload(
+            {"markdown": "Page body", "metadata": {"og:title": "Metadata title"}},
+            "https://example.com/article",
+        )
+        self.assertEqual(title, "Metadata title")
+        self.assertEqual(final_url, "https://example.com/article")
+        self.assertEqual(markdown, "Page body")
+
+    def test_rejects_response_without_markdown(self):
+        with self.assertRaises(UpstreamServiceError):
+            _parse_cloud_payload({"title": "No content"}, "https://example.com/")
 
 
 class WebsiteChunkMetadataTests(unittest.TestCase):
