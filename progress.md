@@ -259,18 +259,18 @@ Validation note: five isolated behavioral checks for the OCR cleanup logic passe
 
 ### Runtime and verification notes
 
-- Local setup: install requirements, then run `crawl4ai-setup` or `python -m playwright install chromium`.
-- Serverless deploys need a provisioned Chromium binary or the trusted remote CDP URL setting `CRAWL4AI_CDP_URL`. The browser is not automatically downloaded merely by pip installing requirements.
-- Full Python test-suite execution and a live public website → Supabase → query smoke test still need verification against the deployment environment.
+- Vercel deployments should configure `CRAWL4AI_API_KEY` and use the hosted Crawl4AI API, avoiding a local browser binary and the earlier oversized Python bundle.
+- Local-browser mode remains available by manually installing `crawl4ai==0.9.5` and running `crawl4ai-setup`; `CRAWL4AI_CDP_URL` can target a trusted remote CDP browser from that local installation.
+- The hosted API path has offline response-parsing tests, but the live service, live website → Supabase → query smoke test, and full suite still need verification after deployment.
 
 
 ---
 
 ## Vercel bundle-size deployment fix (2026-10-26)
 
-The website-crawling branch hit `LAMBDA_SIZE_EXCEEDED` at 700.86 MB, above Vercel's standard 500 MB uncompressed Python function cap. Crawl4AI/Playwright add browser-automation dependencies, so the integration can exceed the standard size limit even when the application code itself is small.
+The website-crawling branch originally hit `LAMBDA_SIZE_EXCEEDED` at 700.86 MB because Crawl4AI/Playwright browser-automation dependencies were in the default requirements. The default dependency was subsequently moved to an optional local-browser install; Vercel should use the hosted Crawl4AI API instead.
 
 - Added `.python-version` to pin Python 3.12 rather than accepting an implicit Vercel default.
 - Documented the official Large Functions opt-in for existing eligible Vercel projects: `VERCEL_SUPPORT_LARGE_FUNCTIONS=1`, with Fluid Compute and Active CPU. The value must be configured in Vercel Project Settings / CLI, not committed as an app secret or browser-visible variable.
 - Kept the existing `vercel.json` legacy `builds` and routing intact; the warning about project Build/Development Settings being ignored is not the 700.86 MB failure itself.
-- Deployment remains blocked until the Vercel environment variable is configured and a new deployment verifies the package-size check and Chromium startup. If Large Functions is unavailable to the project, split the Crawl4AI browser worker into a separately deployed authenticated service and keep the main FastAPI function small.
+- The Large Functions setting is no longer required solely for website crawling after the optional browser dependency was removed from default requirements. It may remain configured; test the new deployment's bundle size and set `CRAWL4AI_API_KEY` before testing URL ingestion.
