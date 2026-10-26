@@ -230,7 +230,7 @@ async def crawl_website(url: str) -> CrawledWebsite:
     )
     run_config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
-        excluded_tags=["script", "style", "noscript", "svg", "canvas", "nav", "footer", "form", "aside"],
+        excluded_tags=["script", "style", "noscript", "svg", "canvas", "nav", "footer", "form"],
         word_count_threshold=3,
         wait_until="domcontentloaded",
         page_timeout=max(5, min(int(settings.crawl4ai_timeout_seconds), 45)) * 1000,
@@ -239,8 +239,10 @@ async def crawl_website(url: str) -> CrawledWebsite:
     )
 
     try:
-        async with AsyncWebCrawler(config=browser_config, verbose=False) as crawler:
-            crawler.crawler_strategy.set_hook("on_page_context_created", configure_page_routes)
+        crawler = AsyncWebCrawler(config=browser_config, verbose=False)
+        # Register the egress guard before browser startup creates page contexts.
+        crawler.crawler_strategy.set_hook("on_page_context_created", configure_page_routes)
+        async with crawler:
             result = await asyncio.wait_for(
                 crawler.arun(url=normalized_url, config=run_config),
                 timeout=max(8, min(int(settings.crawl4ai_timeout_seconds), 45)) + 5,
