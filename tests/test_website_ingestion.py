@@ -1,4 +1,15 @@
+import os
 import unittest
+
+# The URL/chunk helper tests do not need real credentials, but importing the
+# app's Settings object requires these environment variables to be present.
+for _name, _value in {
+    "SUPABASE_URL": "https://example.supabase.co",
+    "SUPABASE_ANON_KEY": "test-anon-key",
+    "SUPABASE_SERVICE_ROLE_KEY": "test-service-role-key",
+    "GROQ_API_KEY": "test-groq-key",
+}.items():
+    os.environ.setdefault(_name, _value)
 
 from api.models.chunk import ChunkDraft
 from exception.exceptions import BadRequestError

@@ -220,6 +220,7 @@ async def crawl_website(url: str) -> CrawledWebsite:
     cdp_url = settings.crawl4ai_cdp_url.strip() or None
     browser_config = BrowserConfig(
         browser_type="chromium",
+        browser_mode="custom" if cdp_url else "dedicated",
         headless=True,
         cdp_url=cdp_url,
         ignore_https_errors=False,
