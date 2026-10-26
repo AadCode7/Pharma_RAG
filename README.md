@@ -50,9 +50,10 @@ utils/                             # pure helpers (chunking, hashing)
 python -m venv .venv
 source .venv/bin/activate        # .venv\Scripts\activate on Windows
 pip install -r requirements.txt
-crawl4ai-setup                    # installs Playwright Chromium for website ingestion
-# If setup fails, try: python -m playwright install chromium
 cp .env.example .env             # then fill in your keys
+# Optional only for local-browser mode without CRAWL4AI_API_KEY:
+pip install crawl4ai==0.9.5
+crawl4ai-setup
 uvicorn api.main:app --reload
 ```
 
@@ -90,22 +91,35 @@ Set the env vars from `.env` in the Vercel project settings. The repository
 pins Python via `.python-version` so the builder doesn't have to select a
 default runtime.
 
-### Required for the Crawl4AI website-crawling dependency
+### Website URL crawling on Vercel
 
-Crawl4AI and its browser-automation dependencies make the Python function
-larger than Vercel's standard 500 MB uncompressed bundle limit. For an existing
-Vercel project, enable **Large Functions** before redeploying:
+Use the hosted Crawl4AI API for website ingestion on Vercel so the deployment
+does not need to package or launch Chromium:
 
-1. Open **Vercel Dashboard → Pharma_RAG → Settings → Environment Variables**.
-2. Add `VERCEL_SUPPORT_LARGE_FUNCTIONS` with value `1` for Preview and Production (and Development if you deploy that environment).
-3. Confirm the project supports **Fluid Compute** with **Active CPU** enabled. Large Functions are not available with Secure Compute or Static IPs.
-4. Redeploy the website-ingestion branch.
+1. Create a key at [Crawl4AI](https://crawl4ai.com/).
+2. In **Vercel Dashboard → Pharma_RAG → Settings → Environment Variables**, set
+   `CRAWL4AI_API_KEY` for Preview and Production (and Development if used).
+   Keep it server-side; do not put it in frontend JavaScript.
+3. Redeploy the website-ingestion branch and test with a public page such as
+   `https://quotes.toscrape.com/`.
 
-This Vercel setting must be added in the dashboard or via the Vercel CLI; adding it to the app's `.env.example` or exposing it to the browser will not enable the platform feature. The Vercel Large Functions beta supports bundles up to 5 GB for eligible projects. If your project cannot use Large Functions, deploy the crawler as a separate service and call it over an authenticated server-to-server API instead of putting Crawl4AI/Chromium in this function.
+Crawl4AI's current documentation advertises 1,000 free credits per month, with
+rate/concurrency limits; check its dashboard for current usage and pricing.
+The hosted API returns Markdown and page metadata, and the application keeps
+the existing URL/title/section/chunk provenance and ingestion pipeline.
 
-`vercel.json` currently uses the legacy `builds` configuration, so Vercel's warning that dashboard Build and Development Settings are ignored is informational, not the cause of the bundle-size failure. Do not remove `builds` unless intentionally migrating the app's routing/runtime configuration.
+The default `requirements.txt` intentionally does **not** install the large
+`crawl4ai` browser package. This also avoids the earlier Vercel function-size
+limit. For local development without a cloud key, install the optional browser
+backend with `pip install crawl4ai==0.9.5`, then run `crawl4ai-setup`.
+Alternatively, a local installation can use `CRAWL4AI_CDP_URL` to connect to
+a trusted remote Chromium endpoint. If `CRAWL4AI_API_KEY` is set, the hosted
+API takes precedence and the local browser is not launched.
 
-**Website ingestion runtime note:** `crawl4ai` is installed with `requirements.txt`, but the Chromium browser binary is a separate install. Local development requires `crawl4ai-setup` or `python -m playwright install chromium`. On Vercel, the Large Functions setting addresses the function-size limit; you must still verify Chromium launch and page crawling after the deployment builds. For a serverless deploy that cannot include and launch Chromium, configure `CRAWL4AI_CDP_URL` to a trusted remote Playwright Chromium endpoint. Normal file, PDF, image OCR, and pasted-text paths do not depend on Chromium.
+`vercel.json` still uses the legacy `builds` configuration. Its warning
+about dashboard Build and Development Settings is separate from website crawling;
+do not remove `builds` unless intentionally migrating the app's routing.
+Normal file, PDF, image OCR, and pasted-text paths do not depend on Chromium.
 
 ## 5. What's implemented in V1
 
