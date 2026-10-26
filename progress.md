@@ -262,3 +262,15 @@ Validation note: five isolated behavioral checks for the OCR cleanup logic passe
 - Local setup: install requirements, then run `crawl4ai-setup` or `python -m playwright install chromium`.
 - Serverless deploys need a provisioned Chromium binary or the trusted remote CDP URL setting `CRAWL4AI_CDP_URL`. The browser is not automatically downloaded merely by pip installing requirements.
 - Full Python test-suite execution and a live public website → Supabase → query smoke test still need verification against the deployment environment.
+
+
+---
+
+## Vercel bundle-size deployment fix (2026-10-26)
+
+The website-crawling branch hit `LAMBDA_SIZE_EXCEEDED` at 700.86 MB, above Vercel's standard 500 MB uncompressed Python function cap. Crawl4AI/Playwright add browser-automation dependencies, so the integration can exceed the standard size limit even when the application code itself is small.
+
+- Added `.python-version` to pin Python 3.12 rather than accepting an implicit Vercel default.
+- Documented the official Large Functions opt-in for existing eligible Vercel projects: `VERCEL_SUPPORT_LARGE_FUNCTIONS=1`, with Fluid Compute and Active CPU. The value must be configured in Vercel Project Settings / CLI, not committed as an app secret or browser-visible variable.
+- Kept the existing `vercel.json` legacy `builds` and routing intact; the warning about project Build/Development Settings being ignored is not the 700.86 MB failure itself.
+- Deployment remains blocked until the Vercel environment variable is configured and a new deployment verifies the package-size check and Chromium startup. If Large Functions is unavailable to the project, split the Crawl4AI browser worker into a separately deployed authenticated service and keep the main FastAPI function small.

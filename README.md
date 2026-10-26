@@ -86,17 +86,26 @@ cd pharma-rag-py
 vercel
 ```
 
-Set the env vars from `.env` in the Vercel project settings. `vercel.json`
-routes everything through `api/main.py` and bundles `api/static` +
-`api/templates` alongside it — **this Python + static-files + FastAPI-on-Vercel
-combination is less battle-tested than the plain Node.js version and I
-couldn't verify it end-to-end.** If static assets 404 after deploying, the
-likely fix is serving `/static` as a separate Vercel static route instead of
-through the FastAPI app, or moving to a platform with native long-running
-Python support (Render, Fly.io, Railway) if Vercel's Python runtime proves
-too constrained for this app's needs.
+Set the env vars from `.env` in the Vercel project settings. The repository
+pins Python via `.python-version` so the builder doesn't have to select a
+default runtime.
 
-**Website ingestion runtime note:** `crawl4ai` is installed with `requirements.txt`, but the Chromium browser binary is a separate install. For a serverless deploy that cannot include and launch Chromium, configure `CRAWL4AI_CDP_URL` to a trusted remote Playwright Chromium endpoint. Otherwise provision Chromium in your deployment build and verify function size, memory, and timeout limits before enabling website uploads. Normal file, PDF, image OCR, and pasted-text paths do not depend on Chromium.
+### Required for the Crawl4AI website-crawling dependency
+
+Crawl4AI and its browser-automation dependencies make the Python function
+larger than Vercel's standard 500 MB uncompressed bundle limit. For an existing
+Vercel project, enable **Large Functions** before redeploying:
+
+1. Open **Vercel Dashboard → Pharma_RAG → Settings → Environment Variables**.
+2. Add `VERCEL_SUPPORT_LARGE_FUNCTIONS` with value `1` for Preview and Production (and Development if you deploy that environment).
+3. Confirm the project supports **Fluid Compute** with **Active CPU** enabled. Large Functions are not available with Secure Compute or Static IPs.
+4. Redeploy the website-ingestion branch.
+
+This Vercel setting must be added in the dashboard or via the Vercel CLI; adding it to the app's `.env.example` or exposing it to the browser will not enable the platform feature. The Vercel Large Functions beta supports bundles up to 5 GB for eligible projects. If your project cannot use Large Functions, deploy the crawler as a separate service and call it over an authenticated server-to-server API instead of putting Crawl4AI/Chromium in this function.
+
+`vercel.json` currently uses the legacy `builds` configuration, so Vercel's warning that dashboard Build and Development Settings are ignored is informational, not the cause of the bundle-size failure. Do not remove `builds` unless intentionally migrating the app's routing/runtime configuration.
+
+**Website ingestion runtime note:** `crawl4ai` is installed with `requirements.txt`, but the Chromium browser binary is a separate install. Local development requires `crawl4ai-setup` or `python -m playwright install chromium`. On Vercel, the Large Functions setting addresses the function-size limit; you must still verify Chromium launch and page crawling after the deployment builds. For a serverless deploy that cannot include and launch Chromium, configure `CRAWL4AI_CDP_URL` to a trusted remote Playwright Chromium endpoint. Normal file, PDF, image OCR, and pasted-text paths do not depend on Chromium.
 
 ## 5. What's implemented in V1
 
