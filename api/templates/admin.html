@@ -4,13 +4,19 @@
 <section class="panel">
   <header class="panel-header">
     <h2>Knowledge Base</h2>
-    <p>Publish a document version, extract text from supported files, and choose how its content will be chunked and embedded.</p>
+    <p>Publish a document version from text, an image, a PDF, or a public website URL. All sources use your selected chunking and embedding strategies.</p>
   </header>
 
   <form id="upload-form" class="upload-form">
     <label>
       Document title
-      <input id="upload-title" type="text" required placeholder="e.g. SOP-4471: Cold Chain Handling" />
+      <input id="upload-title" type="text" placeholder="e.g. SOP-4471: Cold Chain Handling (optional for websites)" />
+    </label>
+
+    <label>
+      Website URL (optional)
+      <input id="website-url" type="url" inputmode="url" placeholder="https://www.example.com/clinical-guidance" autocomplete="url" />
+      <span class="strategy-help">Crawl one public page with Crawl4AI and headless Chromium. Use the URL instead of selecting a file or pasting text. Pages requiring sign-in are not supported.</span>
     </label>
 
     <label>

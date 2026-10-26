@@ -21,6 +21,16 @@ class Settings(BaseSettings):
     # normalized below so stale Vercel environment variables do not break queries.
     groq_model: str = "openai/gpt-oss-20b"
 
+    # Preferred for serverless deployments: Crawl4AI Cloud uses a hosted browser,
+    # so the Vercel function does not need a bundled Chromium executable.
+    crawl4ai_api_key: str = ""
+    crawl4ai_api_timeout_seconds: int = 90
+
+    # Optional remote Chromium DevTools endpoint for deployments that cannot
+    # host a local Playwright browser binary. Used only when the Cloud API key is absent.
+    crawl4ai_cdp_url: str = ""
+    crawl4ai_timeout_seconds: int = 25
+
     @field_validator("embedding_model", mode="before")
     @classmethod
     def normalize_legacy_embedding_model(cls, value: object) -> object:

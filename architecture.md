@@ -189,3 +189,16 @@ The image bytes are processed locally and are not sent to an OCR API. Tesseract.
 Before chunking, normalize_extracted_text() normalizes Unicode and whitespace, removes NUL/zero-width/soft-hyphen artifacts, and conservatively repairs words split by hyphenated line wraps while retaining common true hyphenated compounds. OCR-only layout cleanup joins ordinary wrapped prose lines but preserves paragraph boundaries, recognizable headings, list items and table-like rows. This ensures chunk offsets and content refer to the same normalized text written to storage. Low-confidence OCR results are allowed to be reviewed and published, but the UI displays a warning when Tesseract reports confidence below 55.
 
 Current OCR language is English (eng). PDF handling remains unchanged: a PDF with no selectable text still needs its pages uploaded as images or its text supplied manually; OCR for scanned PDFs is not part of this change.
+
+
+---
+
+## 12. Website URL ingestion with Crawl4AI
+
+The Knowledge Base manager can ingest a single public URL per document version. The FastAPI endpoint validates that the request contains either a website URL or text/file-derived content. When `CRAWL4AI_API_KEY` is set, it calls the hosted Crawl4AI `POST /scrape` API over HTTPS, receives Markdown and metadata, and does not start a browser in the Vercel function. Without a cloud key, it lazily imports the optional Crawl4AI 0.9.5 package and launches headless Chromium through Playwright. Both paths normalize page content before chunking; the output is capped at 120,000 characters.
+
+Before crawling, the URL is normalized and validated as HTTP(S), credentials are rejected, only standard HTTP/HTTPS ports are allowed, and literal or DNS-resolved private/non-global IP addresses are rejected. In local-browser mode, a Crawl4AI `on_page_context_created` hook installs Playwright request routing to re-check outbound requests, subresources, and redirect destinations. Cloud mode additionally relies on the hosted API's public-URL boundary, and the returned final URL is validated before being stored. These checks are defense in depth, not a substitute for network-level egress restrictions or IP pinning against DNS rebinding. The crawler does not log in to pages and does not recursively crawl links.
+
+Markdown whitespace/Unicode cleanup happens before chunking. Once chunk boundaries are known, every website chunk gets a compact provenance prefix: final source URL, page title, current heading breadcrumb, and 1-based chunk index/count. Parent context receives source/title/section context too. Character offsets remain relative to the unprefixed Markdown. The same enriched text is persisted and embedded so URL and section information are present in retrieval context. The page URL is stored in the existing `documents.source_uri`; no SQL migration is needed. Existing text, Markdown, PDF, and image-OCR chunk content is not enriched or otherwise changed.
+
+The default `requirements.txt` avoids installing the large browser package to keep Vercel functions within normal bundle limits. Local-browser mode requires `pip install crawl4ai==0.9.5` and `crawl4ai-setup`; alternatively set `CRAWL4AI_CDP_URL` for a trusted remote Chromium endpoint. `CRAWL4AI_API_KEY` takes precedence whenever it is configured, and the secret is never exposed to the browser client.

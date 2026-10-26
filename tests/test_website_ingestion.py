@@ -1,0 +1,104 @@
+import os
+import unittest
+
+# The URL/chunk helper tests do not need real credentials, but importing the
+# app's Settings object requires these environment variables to be present.
+for _name, _value in {
+    "SUPABASE_URL": "https://example.supabase.co",
+    "SUPABASE_ANON_KEY": "test-anon-key",
+    "SUPABASE_SERVICE_ROLE_KEY": "test-service-role-key",
+    "GROQ_API_KEY": "test-groq-key",
+}.items():
+    os.environ.setdefault(_name, _value)
+
+from api.models.chunk import ChunkDraft
+from exception.exceptions import BadRequestError, UpstreamServiceError
+from api.services.web_crawler_service import _parse_cloud_payload, normalize_website_url_syntax
+from utils.website import enrich_website_chunks
+
+
+class WebsiteURLValidationTests(unittest.TestCase):
+    def test_normalizes_public_http_url_and_removes_fragment(self):
+        self.assertEqual(
+            normalize_website_url_syntax(" HTTPS://Example.COM/path?q=drug#section "),
+            "https://example.com/path?q=drug",
+        )
+
+    def test_adds_root_path(self):
+        self.assertEqual(normalize_website_url_syntax("https://example.com"), "https://example.com/")
+
+    def test_rejects_non_http_schemes(self):
+        for value in ("file:///etc/passwd", "ftp://example.com/file", "javascript:alert(1)"):
+            with self.subTest(value=value), self.assertRaises(BadRequestError):
+                normalize_website_url_syntax(value)
+
+    def test_rejects_local_and_private_destinations(self):
+        for value in (
+            "http://localhost", "http://127.0.0.1", "http://192.168.1.20",
+            "http://169.254.169.254/latest/meta-data/", "http://service.local/",
+            "http://internal/", "http://[::1]/",
+        ):
+            with self.subTest(value=value), self.assertRaises(BadRequestError):
+                normalize_website_url_syntax(value)
+
+    def test_rejects_credentials_and_nonstandard_ports(self):
+        for value in ("https://name:secret@example.com", "https://example.com:8443/", "http://example.com:443/"):
+            with self.subTest(value=value), self.assertRaises(BadRequestError):
+                normalize_website_url_syntax(value)
+
+
+class Crawl4AICloudResponseTests(unittest.TestCase):
+    def test_parses_markdown_title_and_final_url(self):
+        title, final_url, markdown = _parse_cloud_payload(
+            {
+                "title": "Quotes to Scrape",
+                "url": "https://quotes.toscrape.com/",
+                "markdown": "# Quotes\nA quote.",
+                "metadata": {"title": "Ignored metadata title"},
+            },
+            "https://example.com/",
+        )
+        self.assertEqual(title, "Quotes to Scrape")
+        self.assertEqual(final_url, "https://quotes.toscrape.com/")
+        self.assertEqual(markdown, "# Quotes\nA quote.")
+
+    def test_uses_metadata_and_fallback_url_when_optional_fields_are_missing(self):
+        title, final_url, markdown = _parse_cloud_payload(
+            {"markdown": "Page body", "metadata": {"og:title": "Metadata title"}},
+            "https://example.com/article",
+        )
+        self.assertEqual(title, "Metadata title")
+        self.assertEqual(final_url, "https://example.com/article")
+        self.assertEqual(markdown, "Page body")
+
+    def test_rejects_response_without_markdown(self):
+        with self.assertRaises(UpstreamServiceError):
+            _parse_cloud_payload({"title": "No content"}, "https://example.com/")
+
+
+class WebsiteChunkMetadataTests(unittest.TestCase):
+    def test_enriches_url_title_sections_and_sequential_order(self):
+        source = "# Clinical Overview\nText for first chunk.\n\n## Safety\nText for second chunk."
+        chunks = [
+            ChunkDraft(0, "Text for first chunk.", "section_aware", 20, 41),
+            ChunkDraft(1, "Text for second chunk.", "section_aware", 52, 75),
+        ]
+        enriched = enrich_website_chunks(chunks, source, "https://example.com/guide", "Drug Guide")
+        self.assertIn("Source URL: https://example.com/guide", enriched[0].content)
+        self.assertIn("Page title: Drug Guide", enriched[0].content)
+        self.assertIn("Section: Clinical Overview", enriched[0].content)
+        self.assertIn("Page chunk: 1 of 2", enriched[0].content)
+        self.assertIn("Section: Clinical Overview > Safety", enriched[1].content)
+        self.assertIn("Page chunk: 2 of 2", enriched[1].content)
+        self.assertEqual(enriched[0].char_start, chunks[0].char_start)
+        self.assertEqual(enriched[0].char_end, chunks[0].char_end)
+
+    def test_enriches_parent_context_for_parent_child_chunks(self):
+        chunk = ChunkDraft(0, "Child text", "parent_child", 0, 10, "Parent text")
+        enriched = enrich_website_chunks([chunk], "# Root\nChild text", "https://example.com", "Page")
+        self.assertIn("Source URL: https://example.com", enriched[0].parent_content)
+        self.assertIn("Parent text", enriched[0].parent_content)
+
+
+if __name__ == "__main__":
+    unittest.main()

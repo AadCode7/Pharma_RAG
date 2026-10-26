@@ -6,14 +6,15 @@ from pydantic import BaseModel, ConfigDict, Field
 class IngestRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    title: str
-    text: str
+    title: str = ""
+    text: str = ""
     department_ids: list[str] = Field(default_factory=list, alias="departmentIds")
     existing_document_id: str | None = Field(default=None, alias="existingDocumentId")
     chunking_strategy: str = Field(default="fixed_size_v1", alias="chunkingStrategy")
     embedding_strategy: str = Field(default="bge_small", alias="embeddingStrategy")
     index_graph: bool = Field(default=True, alias="indexGraph")
-    extraction_source: Literal["text", "markdown", "pdf", "image"] = Field(default="text", alias="extractionSource")
+    extraction_source: Literal["text", "markdown", "pdf", "image", "website"] = Field(default="text", alias="extractionSource")
+    website_url: str | None = Field(default=None, alias="websiteUrl")
 
 
 class IngestResponse(BaseModel):

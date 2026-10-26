@@ -51,6 +51,9 @@ python -m venv .venv
 source .venv/bin/activate        # .venv\Scripts\activate on Windows
 pip install -r requirements.txt
 cp .env.example .env             # then fill in your keys
+# Optional only for local-browser mode without CRAWL4AI_API_KEY:
+pip install crawl4ai==0.9.5
+crawl4ai-setup
 uvicorn api.main:app --reload
 ```
 
@@ -84,15 +87,39 @@ cd pharma-rag-py
 vercel
 ```
 
-Set the env vars from `.env` in the Vercel project settings. `vercel.json`
-routes everything through `api/main.py` and bundles `api/static` +
-`api/templates` alongside it — **this Python + static-files + FastAPI-on-Vercel
-combination is less battle-tested than the plain Node.js version and I
-couldn't verify it end-to-end.** If static assets 404 after deploying, the
-likely fix is serving `/static` as a separate Vercel static route instead of
-through the FastAPI app, or moving to a platform with native long-running
-Python support (Render, Fly.io, Railway) if Vercel's Python runtime proves
-too constrained for this app's needs.
+Set the env vars from `.env` in the Vercel project settings. The repository
+pins Python via `.python-version` so the builder doesn't have to select a
+default runtime.
+
+### Website URL crawling on Vercel
+
+Use the hosted Crawl4AI API for website ingestion on Vercel so the deployment
+does not need to package or launch Chromium:
+
+1. Create a key at [Crawl4AI](https://crawl4ai.com/).
+2. In **Vercel Dashboard → Pharma_RAG → Settings → Environment Variables**, set
+   `CRAWL4AI_API_KEY` for Preview and Production (and Development if used).
+   Keep it server-side; do not put it in frontend JavaScript.
+3. Redeploy the website-ingestion branch and test with a public page such as
+   `https://quotes.toscrape.com/`.
+
+Crawl4AI's current documentation advertises 1,000 free credits per month, with
+rate/concurrency limits; check its dashboard for current usage and pricing.
+The hosted API returns Markdown and page metadata, and the application keeps
+the existing URL/title/section/chunk provenance and ingestion pipeline.
+
+The default `requirements.txt` intentionally does **not** install the large
+`crawl4ai` browser package. This also avoids the earlier Vercel function-size
+limit. For local development without a cloud key, install the optional browser
+backend with `pip install crawl4ai==0.9.5`, then run `crawl4ai-setup`.
+Alternatively, a local installation can use `CRAWL4AI_CDP_URL` to connect to
+a trusted remote Chromium endpoint. If `CRAWL4AI_API_KEY` is set, the hosted
+API takes precedence and the local browser is not launched.
+
+`vercel.json` still uses the legacy `builds` configuration. Its warning
+about dashboard Build and Development Settings is separate from website crawling;
+do not remove `builds` unless intentionally migrating the app's routing.
+Normal file, PDF, image OCR, and pasted-text paths do not depend on Chromium.
 
 ## 5. What's implemented in V1
 
@@ -139,3 +166,14 @@ Existing documents are not backfilled automatically. Republish each version that
 **Data handling note:** enabling graph indexing sends selected document passages (up to 2,600 characters per chunk, in small batches) to the configured Groq API for relationship extraction. Cohere is already used for embeddings, and selecting Cohere reranking sends retrieved query/passages to Cohere. Check your pharmaceutical-data, privacy, and vendor policies before sending confidential content to any hosted provider.
 
 Graph rows are attached to chunk IDs. The graph retrieval SQL function applies department-based visibility, active chunk checks, and the current document-version pointer before returning edges. Do not query graph tables directly from browser code.
+
+
+## Website URL ingestion
+
+Managers can enter one public page URL in the Knowledge Base form instead of uploading a file or pasting text. Crawl4AI 0.9.5 uses headless Playwright Chromium to render JavaScript-driven pages and convert the content to structured Markdown. The result is whitespace-normalized and sent through the existing selected chunking, Cohere embedding, versioning, and optional GraphRAG pipeline.
+
+Website chunks include the final source URL, page title, detected heading breadcrumb, and 1-based chunk position/count. The page URL is also stored in the existing `documents.source_uri` field; no database migration is required. Very long pages are capped at 120,000 characters and the upload response notes when truncation occurred. This is one page per upload, not a recursive website-wide crawl.
+
+The crawler rejects non-HTTP(S) URLs, embedded credentials, nonstandard ports, localhost/internal hostnames, private/reserved literal IPs and DNS results. Browser requests and redirects are also checked. This is application-level egress protection; production deployments should additionally restrict outbound network access at the hosting/network layer. Crawl only public content you are authorized to ingest, and review website terms and robots guidance.
+
+Local setup requires `crawl4ai-setup` (or `python -m playwright install chromium`) after installing requirements. On Vercel or another serverless host, provide a compatible Chromium build or a trusted remote CDP endpoint through `CRAWL4AI_CDP_URL`. Website ingestion returns a clear upstream error if Crawl4AI/Chromium is unavailable; existing ingestion methods remain available.

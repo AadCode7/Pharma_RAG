@@ -8,6 +8,7 @@ from database.client import get_service_client
 from exception.exceptions import BadRequestError, NotFoundError
 from logger.logger import get_logger
 from utils.hashing import sha256_hash
+from utils.website import enrich_website_chunks
 from utils.text import (
     normalize_extracted_text,
     chunk_fixed_size,
@@ -31,6 +32,7 @@ async def ingest_document(
     embedding_strategy: str = "bge_small",
     index_graph: bool = True,
     extraction_source: str = "text",
+    source_url: str | None = None,
 ) -> dict:
     """Handles both a brand new document and a new version of an existing
     one.
@@ -92,6 +94,13 @@ async def ingest_document(
     if not chunk_drafts:
         raise BadRequestError("Document produced no chunks — check the extracted text")
 
+    # Source URL, heading path, and 1-based chunk order are attached only to
+    # website chunks. Existing text/image/PDF chunk payloads remain unchanged.
+    if extraction_source == "website":
+        if not source_url:
+            raise BadRequestError("Website ingestion is missing its source URL")
+        chunk_drafts = enrich_website_chunks(chunk_drafts, text, source_url, title)
+
     # The expensive, flaky, external part — done before any further DB
     # writes, and BEFORE the old version's chunks (if any) are touched.
     embeddings = await embed_texts(
@@ -115,11 +124,10 @@ async def ingest_document(
             )
             version_number = (last_version.data[0]["version_number"] if last_version.data else 0) + 1
         else:
-            new_doc = (
-                service.table("documents")
-                .insert({"title": title, "source_type": "upload", "status": "active", "created_by": user_id})
-                .execute()
-            )
+            new_document = {"title": title, "source_type": "upload", "status": "active", "created_by": user_id}
+            if source_url:
+                new_document["source_uri"] = source_url
+            new_doc = service.table("documents").insert(new_document).execute()
             document_id = new_doc.data[0]["id"]
             created_new_document = True
 
@@ -130,7 +138,7 @@ async def ingest_document(
         # NOTE (untested, see progress.md): supabase-py's storage upload signature
         # has shifted across versions — verify this call against your installed
         # `supabase` package version before relying on it.
-        storage_suffix = "ocr.txt" if extraction_source == "image" else "txt"
+        storage_suffix = "ocr.txt" if extraction_source == "image" else "website.txt" if extraction_source == "website" else "txt"
         storage_path = f"{document_id}/v{version_number}-{uuid.uuid4()}.{storage_suffix}"
         service.storage.from_("documents").upload(
             storage_path, text.encode("utf-8"), {"content-type": "text/plain"}
@@ -184,7 +192,10 @@ async def ingest_document(
         # entire time, uninterrupted. If this is a version update and
         # anything above failed, the old version is still fully intact and
         # active; nothing was ever taken offline.
-        service.table("documents").update({"current_version_id": version_id}).eq("id", document_id).execute()
+        document_updates = {"current_version_id": version_id}
+        if source_url:
+            document_updates["source_uri"] = source_url
+        service.table("documents").update(document_updates).eq("id", document_id).execute()
 
         if not created_new_document:
             prev_versions = (
@@ -229,6 +240,7 @@ async def ingest_document(
             "graph_relationships": graph_relationships,
             "graph_indexing_error": graph_error,
             "extraction_source": extraction_source,
+            "source_url": source_url,
         }
 
     except Exception:

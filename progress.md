@@ -242,3 +242,35 @@ Same sandbox network limitation as before — no access to huggingface.co, groq.
 
 
 Validation note: five isolated behavioral checks for the OCR cleanup logic passed (Unicode/invisible characters, wrapped-word repair, headings/lists/tables, plain-text line breaks and empty input). The committed unittest module and full repository suite were not executable in this editing runtime because the GitHub repository could not be cloned; live Supabase/Cohere/Groq integration remains unverified.
+
+
+---
+
+## Website URL ingestion — feature/crawl4ai-website-ingestion (2026-10-26)
+
+### Implemented on this feature branch
+
+- Added a Website URL field to the manager Knowledge Base form. It is mutually exclusive with file uploads and pasted text, and can use the page title as the document title when no title is entered.
+- Added a lazy Crawl4AI 0.9.5 + Playwright Chromium website extractor, with JavaScript rendering, Markdown extraction, request timeouts, output-size limits, and clear errors for unavailable browsers or blocked/authenticated pages.
+- Added URL syntax, hostname, port, literal-IP and DNS-address checks; a Playwright context route hook re-checks navigation/resource/redirect requests to reduce SSRF exposure.
+- Added Unicode/whitespace normalization and chunk metadata containing final source URL, page title, heading breadcrumb, and sequential chunk index/count. Parent/Child parent context carries source/title/section provenance too.
+- Persisted the final website URL in `documents.source_uri`; no SQL migration is required. Website version storage uses a `.website.txt` suffix.
+- Added isolated tests for URL validation and sequential/section metadata. Existing text, Markdown, PDF, and Tesseract image OCR flows continue through the prior path.
+
+### Runtime and verification notes
+
+- Vercel deployments should configure `CRAWL4AI_API_KEY` and use the hosted Crawl4AI API, avoiding a local browser binary and the earlier oversized Python bundle.
+- Local-browser mode remains available by manually installing `crawl4ai==0.9.5` and running `crawl4ai-setup`; `CRAWL4AI_CDP_URL` can target a trusted remote CDP browser from that local installation.
+- The hosted API path has offline response-parsing tests, but the live service, live website → Supabase → query smoke test, and full suite still need verification after deployment.
+
+
+---
+
+## Vercel bundle-size deployment fix (2026-10-26)
+
+The website-crawling branch originally hit `LAMBDA_SIZE_EXCEEDED` at 700.86 MB because Crawl4AI/Playwright browser-automation dependencies were in the default requirements. The default dependency was subsequently moved to an optional local-browser install; Vercel should use the hosted Crawl4AI API instead.
+
+- Added `.python-version` to pin Python 3.12 rather than accepting an implicit Vercel default.
+- Documented the official Large Functions opt-in for existing eligible Vercel projects: `VERCEL_SUPPORT_LARGE_FUNCTIONS=1`, with Fluid Compute and Active CPU. The value must be configured in Vercel Project Settings / CLI, not committed as an app secret or browser-visible variable.
+- Kept the existing `vercel.json` legacy `builds` and routing intact; the warning about project Build/Development Settings being ignored is not the 700.86 MB failure itself.
+- The Large Functions setting is no longer required solely for website crawling after the optional browser dependency was removed from default requirements. It may remain configured; test the new deployment's bundle size and set `CRAWL4AI_API_KEY` before testing URL ingestion.

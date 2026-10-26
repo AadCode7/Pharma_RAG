@@ -11,6 +11,11 @@ document.addEventListener('auth-ready', async (e) => {
   try {
     await Promise.all([loadDepartmentCheckboxes(), loadUploadStrategies()]);
     document.getElementById('upload-form').addEventListener('submit', handleUploadSubmit);
+    const websiteUrlInput = document.getElementById('website-url');
+    const titleInput = document.getElementById('upload-title');
+    const updateTitleRequirement = () => { titleInput.required = !websiteUrlInput.value.trim(); };
+    websiteUrlInput.addEventListener('input', updateTitleRequirement);
+    updateTitleRequirement();
     await selectDocumentFromUrl();
     updateSelectedUploadConfig();
   } catch (err) {
@@ -135,6 +140,7 @@ async function handleUploadSubmit(e) {
   const title = document.getElementById('upload-title').value.trim();
   const fileInput = document.getElementById('upload-file');
   const textArea = document.getElementById('upload-text');
+  const websiteUrl = document.getElementById('website-url').value.trim();
   const existingDocumentId = document.getElementById('upload-existing-doc-id').value || null;
   const departmentIds = Array.from(document.querySelectorAll('input[name="dept"]:checked')).map((i) => i.value);
   const chunkingStrategy = document.getElementById('chunking-strategy').value;
@@ -148,17 +154,43 @@ async function handleUploadSubmit(e) {
     return;
   }
 
+  const file = fileInput.files[0];
+  if (websiteUrl && (file || textArea.value.trim())) {
+    statusEl.hidden = false;
+    statusEl.className = 'auth-status is-error';
+    statusEl.textContent = 'Use the website URL by itself, or upload/paste content. Clear the other source before publishing.';
+    return;
+  }
+  if (!websiteUrl && !file && !textArea.value.trim()) {
+    statusEl.hidden = false;
+    statusEl.className = 'auth-status is-error';
+    statusEl.textContent = 'Add a website URL, select a supported file, or paste document text.';
+    return;
+  }
+
+  if (!existingDocumentId && departmentIds.length === 0) {
+    statusEl.hidden = false;
+    statusEl.className = 'auth-status is-error';
+    statusEl.textContent = 'Select at least one department for a new document.';
+    return;
+  }
+
   submitBtn.disabled = true;
-  submitBtn.textContent = 'Preparing document…';
-  statusEl.hidden = true;
+  submitBtn.textContent = websiteUrl ? 'Crawling website…' : 'Preparing document…';
+  statusEl.hidden = false;
+  statusEl.className = 'auth-status';
+  statusEl.textContent = websiteUrl
+    ? 'Crawl4AI is opening the page in headless Chromium and extracting its main content…'
+    : 'Preparing document…';
 
   try {
     let text = textArea.value.trim();
     let extractionSource = 'text';
-    let ocrWarning = '';
-    const file = fileInput.files[0];
 
-    if (file) {
+    if (websiteUrl) {
+      extractionSource = 'website';
+      text = '';
+    } else if (file) {
       const name = file.name.toLowerCase();
       if (file.type === 'application/pdf' || name.endsWith('.pdf')) {
         extractionSource = 'pdf';
@@ -177,7 +209,7 @@ async function handleUploadSubmit(e) {
         });
         text = extracted.text;
         if (extracted.confidence < 55) {
-          ocrWarning = ' OCR confidence is low; review the extracted text before relying on retrieval results.';
+          statusEl.textContent = 'OCR confidence is low; review extracted text before relying on retrieval results.';
         }
       } else {
         extractionSource = name.endsWith('.md') ? 'markdown' : 'text';
@@ -185,22 +217,26 @@ async function handleUploadSubmit(e) {
       }
     }
 
-    if (!text || !text.trim()) {
-      throw new Error('Provide document text, upload a text-based PDF, or upload an image containing readable text.');
+    if (!websiteUrl && (!text || !text.trim())) {
+      throw new Error('The selected source contains no readable text.');
+    }
+    if (!title && !websiteUrl) {
+      throw new Error('Document title is required.');
     }
 
-    if (!existingDocumentId && departmentIds.length === 0) {
-      throw new Error('Select at least one department for a new document.');
-    }
-
-    submitBtn.textContent = 'Publishing…';
-    statusEl.hidden = true;
+    submitBtn.textContent = websiteUrl ? 'Crawling and indexing…' : 'Publishing…';
+    statusEl.hidden = false;
+    statusEl.className = 'auth-status';
+    statusEl.textContent = websiteUrl
+      ? 'Crawling the page, preparing structured Markdown, then chunking and embedding it…'
+      : 'Chunking and embedding the document…';
 
     const result = await apiFetch('/api/ingest', {
       method: 'POST',
       body: JSON.stringify({
         title,
         text,
+        websiteUrl: websiteUrl || null,
         departmentIds,
         existingDocumentId,
         chunkingStrategy,
@@ -220,16 +256,23 @@ async function handleUploadSubmit(e) {
     } else if (result.graphIndexingStatus === 'failed') {
       graphSummary = result.graphIndexingError || 'Graph indexing failed; normal vector search is still available.';
     }
-    const extractionSummary = extractionSource === 'image'
-      ? ' Image OCR completed in the browser.'
-      : '';
+    let sourceSummary = '';
+    if (result.extractionSource === 'website' && result.sourceUrl) {
+      sourceSummary = ' Website indexed: ' + result.sourceUrl + '. URL, section and page-chunk order were added to each chunk.';
+    } else if (result.extractionSource === 'image') {
+      sourceSummary = ' Image OCR completed in the browser.';
+    }
+    if (result.websiteTruncated) {
+      sourceSummary += ' The page was long, so only the first portion was indexed.';
+    }
     statusEl.textContent = 'Published v' + result.versionNumber + ' — ' + result.chunksCreated
       + ' chunks created using ' + formatStrategy(result.chunkingStrategy) + ' and '
-      + formatStrategy(result.embeddingStrategy) + '.' + extractionSummary + ' ' + graphSummary + ocrWarning;
+      + formatStrategy(result.embeddingStrategy) + '.' + sourceSummary + ' ' + graphSummary;
 
     document.getElementById('upload-form').reset();
     document.getElementById('upload-existing-doc-id').value = '';
     resetUploadStrategyDefaults();
+    document.getElementById('upload-title').required = true;
     window.history.replaceState({}, document.title, '/admin');
     window.dispatchEvent(new CustomEvent('documents-changed'));
     updateUploadStrategyStatus();
