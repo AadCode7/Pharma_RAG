@@ -239,3 +239,6 @@ Same sandbox network limitation as before — no access to huggingface.co, groq.
 - The feature is isolated on feature/tesseract-image-ocr; main is unchanged.
 - No new Python dependency or native OS package is required. The browser downloads Tesseract.js and English trained data on the first image upload, so the manager's browser needs access to those CDNs. The image bytes remain in the browser; extracted text is sent to the application for indexing.
 - Automated tests and an end-to-end upload/query against live Supabase, Cohere and Groq credentials still need to be run before merging. Scanned-PDF OCR and non-English OCR are not included.
+
+
+Validation note: five isolated behavioral checks for the OCR cleanup logic passed (Unicode/invisible characters, wrapped-word repair, headings/lists/tables, plain-text line breaks and empty input). The committed unittest module and full repository suite were not executable in this editing runtime because the GitHub repository could not be cloned; live Supabase/Cohere/Groq integration remains unverified.

@@ -371,11 +371,28 @@ function getLayoutAwareOcrText(data) {
 }
 
 async function extractImageText(file, progressCallback) {
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error('This image is larger than 20 MB. Resize or compress it and try again to keep browser OCR responsive.');
+  }
+
   const inputImage = await prepareImageForOcr(file);
   const worker = await getOcrWorker(progressCallback);
-  const result = await worker.recognize(inputImage);
-  const text = getLayoutAwareOcrText(result.data).trim();
+  let result;
+  try {
+    result = await worker.recognize(inputImage);
+  } catch (error) {
+    ocrWorkerPromise = null;
+    try {
+      await worker.terminate();
+    } catch (cleanupError) {
+      // Keep the original OCR error as the actionable failure.
+    }
+    throw error;
+  } finally {
+    activeOcrProgress = null;
+  }
 
+  const text = getLayoutAwareOcrText(result.data).trim();
   if (!text) {
     throw new Error('Tesseract could not find readable text in this image. Try a sharper, brighter image or paste the text manually.');
   }

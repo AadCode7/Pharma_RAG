@@ -125,7 +125,7 @@ def normalize_extracted_text(text: str, extraction_source: str = "text") -> str:
 
     OCR layout cleanup is deliberately enabled only for image uploads. Text and
     Markdown keep their intentional line structure; PDF extraction keeps its
-       page boundaries while still receiving safe Unicode/whitespace cleanup.
+    page boundaries while still receiving safe Unicode/whitespace cleanup.
     """
     if not isinstance(text, str):
         return ""
