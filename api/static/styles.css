@@ -706,6 +706,7 @@ pre.prompt-block-muted {
 .upload-form { display: flex; flex-direction: column; gap: 1.1rem; max-width: 560px; margin-bottom: 2.5rem; }
 .upload-form label { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem; font-weight: 500; }
 .upload-form input[type="text"],
+.upload-form input[type="url"],
 .upload-form input[type="file"],
 .upload-form textarea {
   border: 1px solid var(--line);
