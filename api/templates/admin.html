@@ -4,7 +4,7 @@
 <section class="panel">
   <header class="panel-header">
     <h2>Knowledge Base</h2>
-    <p>Publish a document version and choose how its text will be chunked and embedded. Strategy implementations are being added incrementally.</p>
+    <p>Publish a document version, extract text from supported files, and choose how its content will be chunked and embedded.</p>
   </header>
 
   <form id="upload-form" class="upload-form">
@@ -14,8 +14,9 @@
     </label>
 
     <label>
-      Content (.txt, .md, or .pdf file, or paste text below)
-      <input id="upload-file" type="file" accept=".txt,.md,.pdf" />
+      Content (.txt, .md, .pdf, .jpg, .jpeg, .png, or .webp file, or paste text below)
+      <input id="upload-file" type="file" accept=".txt,.md,.pdf,.jpg,.jpeg,.png,.webp" />
+      <span class="strategy-help">Images are OCRed in your browser with Tesseract.js on first use. The image itself is not uploaded to an OCR service; extracted text is submitted for indexing.</span>
     </label>
 
     <label>

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -11,6 +13,7 @@ class IngestRequest(BaseModel):
     chunking_strategy: str = Field(default="fixed_size_v1", alias="chunkingStrategy")
     embedding_strategy: str = Field(default="bge_small", alias="embeddingStrategy")
     index_graph: bool = Field(default=True, alias="indexGraph")
+    extraction_source: Literal["text", "markdown", "pdf", "image"] = Field(default="text", alias="extractionSource")
 
 
 class IngestResponse(BaseModel):

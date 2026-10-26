@@ -114,8 +114,7 @@ too constrained for this app's needs.
 - Evaluation numbers — schema and empty-state UI are in place, but no golden
   query set exists yet, so Recall@k/Precision@k have nothing to compute
   against yet (next milestone — see `progress.md`).
-- PDF/DOCX parsing — V1 ingestion accepts plain text (`.txt`/`.md` file or
-  pasted text) only.
+- DOCX parsing — DOCX extraction is not implemented. Uploads support `.txt`/`.md`, selectable-text PDFs, and JPG/JPEG/PNG/WebP images. Image text is extracted locally in the browser with Tesseract.js before the existing ingestion pipeline runs.
 - S3 sync — the schema (`sync_jobs`) anticipates it, the job itself isn't built.
 - Everything in the V2 plan: chunking strategy comparisons, multiple
   embedding models, BM25/hybrid retrieval, reranking.

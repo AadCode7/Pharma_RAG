@@ -1,5 +1,6 @@
 import math
 import re
+import unicodedata
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -21,6 +22,128 @@ _SENTENCE_RE = re.compile(r".+?(?:[.!?]+(?:[\"')\]]*)?(?:\s+|$)|\n+|$)", re.DOTA
 _HEADING_RE = re.compile(
     r"(?m)^\s*(?:(?:#{1,6}\s+.+)|(?:\d+(?:\.\d+)*[.)]?\s+[^\n]{2,120})|(?:[A-Z][A-Z0-9 /&(),:'’\-]{3,100}))\s*$"
 )
+
+
+
+# Common compound modifiers that should retain their hyphen when OCR wraps
+# the token at a line boundary (for example, "long-\nterm" -> "long-term").
+_OCR_HYPHENATED_PREFIXES = {
+    "adverse", "anti", "case", "cell", "clinical", "closed", "co", "cost",
+    "cross", "data", "double", "dose", "early", "evidence", "first",
+    "follow", "gene", "half", "high", "intra", "inter", "late", "life",
+    "long", "low", "meta", "multi", "near", "non", "off", "on", "open",
+    "out", "over", "patient", "phase", "placebo", "post", "pre", "pro",
+    "protein", "real", "record", "risk", "safety", "self", "short",
+    "side", "single", "site", "state", "systematic", "third", "time",
+    "under", "user", "well", "world", "year",
+}
+_OCR_LINE_HYPHEN_RE = re.compile(r"(?m)\b([A-Za-z]{3,})[-‐‑][ \t]*\n[ \t]*([a-z]{3,})\b")
+_OCR_LIST_RE = re.compile(r"^(?:[•●▪◦‣*-]\s+|\d{1,3}[.)]\s+|[A-Za-z][.)]\s+)")
+_OCR_NUMBERED_HEADING_RE = re.compile(r"^\d+(?:\.\d+)*[.)]?\s+[A-Z][A-Za-z0-9 /&(),:'’\-]{2,90}$")
+_OCR_SECTION_HEADING_RE = re.compile(r"^(?:CHAPTER|SECTION|APPENDIX|ANNEX)\s+\S+", re.IGNORECASE)
+
+
+def _dehyphenate_ocr_line_wraps(text: str) -> str:
+    """Join words split at a printed line end without breaking common compounds."""
+    def join_match(match: re.Match[str]) -> str:
+        left, right = match.group(1), match.group(2)
+        if left.lower() in _OCR_HYPHENATED_PREFIXES:
+            return f"{left}-{right}"
+        return f"{left}{right}"
+
+    return _OCR_LINE_HYPHEN_RE.sub(join_match, text)
+
+
+def _is_ocr_heading(line: str) -> bool:
+    if line.startswith("#") or _OCR_SECTION_HEADING_RE.match(line):
+        return True
+    if _OCR_NUMBERED_HEADING_RE.match(line) and not re.search(r"[.!?;:]$", line):
+        return True
+    if re.search(r"[.!?;:]$", line) or len(line) > 90:
+        return False
+    words = re.findall(r"[A-Za-z]+", line)
+    if not words:
+        return False
+    if len(words) <= 12 and line.upper() == line and any(char.isalpha() for char in line):
+        return True
+    title_case_words = sum(word[0].isupper() for word in words)
+    return len(words) >= 2 and len(words) <= 8 and title_case_words / len(words) >= 0.7
+
+
+def _is_ocr_table_line(line: str) -> bool:
+    return "\t" in line or "|" in line or len(re.findall(r" {2,}\S", line)) >= 2
+
+
+def _normalize_ocr_layout(text: str) -> str:
+    """Join wrapped prose lines while retaining headings, lists, tables and paragraphs."""
+    text = _dehyphenate_ocr_line_wraps(text)
+    output: list[str] = []
+    prose_lines: list[str] = []
+
+    def flush_prose() -> None:
+        if prose_lines:
+            joined = " ".join(re.sub(r"[ \t]+", " ", part.strip()) for part in prose_lines)
+            joined = re.sub(r"[ \t]+([,.;:!?])", r"\1", joined)
+            if joined:
+                output.append(joined)
+            prose_lines.clear()
+
+    def blank_line() -> None:
+        if output and output[-1] != "":
+            output.append("")
+
+    for raw_line in text.split("\n"):
+        line = raw_line.strip()
+        if not line:
+            flush_prose()
+            blank_line()
+            continue
+
+        line = re.sub(r"[ \t]+([,.;:!?])", r"\1", line)
+        # Check table spacing before heading heuristics, which could otherwise
+        # collapse aligned column labels such as "Parameter  Value  Range".
+        if _is_ocr_table_line(line):
+            flush_prose()
+            output.append(line)
+        elif _OCR_LIST_RE.match(line):
+            flush_prose()
+            output.append(line)
+        elif _is_ocr_heading(line):
+            flush_prose()
+            blank_line()
+            output.append(re.sub(r"[ \t]+", " ", line))
+            blank_line()
+        else:
+            prose_lines.append(line)
+
+    flush_prose()
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(output)).strip()
+
+
+def normalize_extracted_text(text: str, extraction_source: str = "text") -> str:
+    """Normalize extraction artifacts before chunking, embedding and hashing.
+
+    OCR layout cleanup is deliberately enabled only for image uploads. Text and
+    Markdown keep their intentional line structure; PDF extraction keeps its
+    page boundaries while still receiving safe Unicode/whitespace cleanup.
+    """
+    if not isinstance(text, str):
+        return ""
+
+    text = unicodedata.normalize("NFC", text)
+    text = text.replace("\x00", "")
+    text = text.replace("\u00ad", "")  # soft hyphen
+    text = re.sub(r"[\u200b-\u200f\u2060\ufeff]", "", text)
+    text = re.sub(r"[\u00a0\u2007\u202f]", " ", text)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"(?m)[ \t]+$", "", text)
+    text = re.sub(r"\n[ \t]+", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+
+    if extraction_source == "image":
+        text = _normalize_ocr_layout(text)
+    return text
+
 
 
 def _sentence_spans(text: str) -> list[tuple[int, int, str]]:

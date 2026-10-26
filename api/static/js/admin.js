@@ -148,42 +148,54 @@ async function handleUploadSubmit(e) {
     return;
   }
 
-  let text = textArea.value.trim();
-  try {
-    if (fileInput.files[0]) {
-      const file = fileInput.files[0];
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        text = await extractPdfText(file);
-      } else {
-        text = await file.text();
-      }
-    }
-  } catch (err) {
-    statusEl.hidden = false;
-    statusEl.className = 'auth-status is-error';
-    statusEl.textContent = err.message;
-    return;
-  }
-
-  if (!text) {
-    statusEl.hidden = false;
-    statusEl.className = 'auth-status is-error';
-    statusEl.textContent = 'Provide document text via file upload or the text box.';
-    return;
-  }
-
-  if (!existingDocumentId && departmentIds.length === 0) {
-    statusEl.hidden = false;
-    statusEl.className = 'auth-status is-error';
-    statusEl.textContent = 'Select at least one department for a new document.';
-    return;
-  }
-
   submitBtn.disabled = true;
-  submitBtn.textContent = 'Publishing…';
+  submitBtn.textContent = 'Preparing document…';
   statusEl.hidden = true;
 
   try {
+    let text = textArea.value.trim();
+    let extractionSource = 'text';
+    let ocrWarning = '';
+    const file = fileInput.files[0];
+
+    if (file) {
+      const name = file.name.toLowerCase();
+      if (file.type === 'application/pdf' || name.endsWith('.pdf')) {
+        extractionSource = 'pdf';
+        submitBtn.textContent = 'Extracting PDF text…';
+        text = await extractPdfText(file);
+      } else if (isImageFile(file)) {
+        extractionSource = 'image';
+        statusEl.hidden = false;
+        statusEl.className = 'auth-status';
+        statusEl.textContent = 'Preparing image for local OCR…';
+        submitBtn.textContent = 'Extracting image text…';
+        const extracted = await extractImageText(file, (message) => {
+          statusEl.hidden = false;
+          statusEl.className = 'auth-status';
+          statusEl.textContent = 'Local OCR: ' + describeOcrProgress(message);
+        });
+        text = extracted.text;
+        if (extracted.confidence < 55) {
+          ocrWarning = ' OCR confidence is low; review the extracted text before relying on retrieval results.';
+        }
+      } else {
+        extractionSource = name.endsWith('.md') ? 'markdown' : 'text';
+        text = await file.text();
+      }
+    }
+
+    if (!text || !text.trim()) {
+      throw new Error('Provide document text, upload a text-based PDF, or upload an image containing readable text.');
+    }
+
+    if (!existingDocumentId && departmentIds.length === 0) {
+      throw new Error('Select at least one department for a new document.');
+    }
+
+    submitBtn.textContent = 'Publishing…';
+    statusEl.hidden = true;
+
     const result = await apiFetch('/api/ingest', {
       method: 'POST',
       body: JSON.stringify({
@@ -194,6 +206,7 @@ async function handleUploadSubmit(e) {
         chunkingStrategy,
         embeddingStrategy,
         indexGraph,
+        extractionSource,
       }),
     });
 
@@ -202,12 +215,17 @@ async function handleUploadSubmit(e) {
     let graphSummary = 'Graph indexing skipped.';
     if (result.graphIndexingStatus === 'completed') {
       graphSummary = result.graphRelationships > 0
-        ? `Graph index: ${result.graphRelationships} relationships across ${result.graphEntities} entities.`
+        ? 'Graph index: ' + result.graphRelationships + ' relationships across ' + result.graphEntities + ' entities.'
         : 'Graph indexing completed, but no supported relationships were extracted from this version.';
     } else if (result.graphIndexingStatus === 'failed') {
       graphSummary = result.graphIndexingError || 'Graph indexing failed; normal vector search is still available.';
     }
-    statusEl.textContent = `Published v${result.versionNumber} — ${result.chunksCreated} chunks created using ${formatStrategy(result.chunkingStrategy)} and ${formatStrategy(result.embeddingStrategy)}. ${graphSummary}`;
+    const extractionSummary = extractionSource === 'image'
+      ? ' Image OCR completed in the browser.'
+      : '';
+    statusEl.textContent = 'Published v' + result.versionNumber + ' — ' + result.chunksCreated
+      + ' chunks created using ' + formatStrategy(result.chunkingStrategy) + ' and '
+      + formatStrategy(result.embeddingStrategy) + '.' + extractionSummary + ' ' + graphSummary + ocrWarning;
 
     document.getElementById('upload-form').reset();
     document.getElementById('upload-existing-doc-id').value = '';
@@ -218,7 +236,7 @@ async function handleUploadSubmit(e) {
   } catch (err) {
     statusEl.hidden = false;
     statusEl.className = 'auth-status is-error';
-    statusEl.textContent = err.message;
+    statusEl.textContent = err.message || 'Document upload failed.';
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = 'Publish document';
@@ -250,6 +268,140 @@ function formatStrategy(value) {
     openai_small: 'OpenAI Small',
   };
   return labels[value] || value || 'Unknown';
+}
+
+let tesseractScriptPromise = null;
+let ocrWorkerPromise = null;
+let activeOcrProgress = null;
+
+function isImageFile(file) {
+  const supportedExtension = /\.(?:jpe?g|png|webp)$/i.test(file.name || '');
+  const supportedMime = ['image/jpeg', 'image/png', 'image/webp'].includes((file.type || '').toLowerCase());
+  return supportedExtension || supportedMime;
+}
+
+function loadTesseractLibrary() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  if (!tesseractScriptPromise) {
+    tesseractScriptPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+      script.async = true;
+      script.onload = () => window.Tesseract
+        ? resolve(window.Tesseract)
+        : reject(new Error('Tesseract.js loaded without exposing its OCR API.'));
+      script.onerror = () => reject(new Error('Could not load Tesseract.js. Check your internet connection and retry; text and PDF uploads are unaffected.'));
+      document.head.appendChild(script);
+    }).catch((error) => {
+      tesseractScriptPromise = null;
+      throw error;
+    });
+  }
+  return tesseractScriptPromise;
+}
+
+function describeOcrProgress(message) {
+  if (!message) return 'Initializing OCR…';
+  const names = {
+    'loading tesseract core': 'Loading OCR engine',
+    'initializing tesseract': 'Starting OCR engine',
+    'loading language traineddata': 'Loading English language data',
+    'initializing api': 'Preparing English recognition',
+    'recognizing text': 'Recognizing image text',
+  };
+  const label = names[message.status] || 'Preparing OCR';
+  const percent = Number.isFinite(message.progress) ? ' (' + Math.round(message.progress * 100) + '%)' : '';
+  return label + percent + '…';
+}
+
+async function prepareImageForOcr(file) {
+  if (typeof createImageBitmap !== 'function') return file;
+
+  const bitmap = await createImageBitmap(file);
+  try {
+    const longestSide = Math.max(bitmap.width, bitmap.height);
+    if (!longestSide) return file;
+    // Modest upscaling can help small screenshots; large photos are capped to
+    // control browser memory and OCR latency.
+    const scale = Math.min(1.5, 2600 / longestSide);
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return file;
+
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, width, height);
+    if ('filter' in context) context.filter = 'grayscale(1) contrast(1.12)';
+    context.drawImage(bitmap, 0, 0, width, height);
+    return canvas;
+  } finally {
+    if (typeof bitmap.close === 'function') bitmap.close();
+  }
+}
+
+async function getOcrWorker(progressCallback) {
+  activeOcrProgress = progressCallback;
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = loadTesseractLibrary()
+      .then((tesseract) => tesseract.createWorker('eng', 1, {
+        // Keep trained data on the maintained jsDelivr data package rather
+        // than relying on the legacy tessdata.projectnaptha.com default.
+        langPath: 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int',
+        logger: (message) => {
+          if (typeof activeOcrProgress === 'function') activeOcrProgress(message);
+        },
+      }))
+      .then(async (worker) => {
+        await worker.setParameters({ preserve_interword_spaces: '1' });
+        return worker;
+      })
+      .catch((error) => {
+        ocrWorkerPromise = null;
+        throw error;
+      });
+  }
+  return ocrWorkerPromise;
+}
+
+function getLayoutAwareOcrText(data) {
+  const paragraphs = (data.paragraphs || [])
+    .map((paragraph) => (paragraph.text || '').trim())
+    .filter(Boolean);
+  return paragraphs.length ? paragraphs.join('\n\n') : (data.text || '');
+}
+
+async function extractImageText(file, progressCallback) {
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error('This image is larger than 20 MB. Resize or compress it and try again to keep browser OCR responsive.');
+  }
+
+  const inputImage = await prepareImageForOcr(file);
+  const worker = await getOcrWorker(progressCallback);
+  let result;
+  try {
+    result = await worker.recognize(inputImage);
+  } catch (error) {
+    ocrWorkerPromise = null;
+    try {
+      await worker.terminate();
+    } catch (cleanupError) {
+      // Keep the original OCR error as the actionable failure.
+    }
+    throw error;
+  } finally {
+    activeOcrProgress = null;
+  }
+
+  const text = getLayoutAwareOcrText(result.data).trim();
+  if (!text) {
+    throw new Error('Tesseract could not find readable text in this image. Try a sharper, brighter image or paste the text manually.');
+  }
+
+  const confidence = Number.isFinite(result.data.confidence) ? result.data.confidence : 0;
+  return { text, confidence };
 }
 
 async function extractPdfText(file) {

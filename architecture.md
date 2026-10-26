@@ -176,3 +176,16 @@ Extraction uses a strict evidence quote and validates the subject, object, and q
 The `graph_extraction_cache` table stores candidate triples by source SHA-256, model, and prompt version. Cached candidates are revalidated before persistence. Cache read/write failures are non-fatal. Apply `database/migrations/0005_graph_rag_quality.sql` after migration 0004.
 
 The query selector recommends GraphRAG + Hybrid Vector Search: graph traversal helps discover connected evidence, while dense and BM25 retrieval remain available when the graph is incomplete. Graph edges are retrieval hints only; final answers must remain grounded in the original retrieved passage.
+
+
+---
+
+## 11. Image OCR ingestion
+
+The manager Knowledge Base upload form supports JPG/JPEG, PNG and WebP image uploads in addition to the existing text, Markdown and selectable-text PDF paths. Images are processed by a lazily loaded Tesseract.js 5 worker in the browser; the worker is reused while the page stays open so repeated uploads do not repeatedly initialize the OCR engine. Browser-side preprocessing draws the image onto a white canvas, applies grayscale and mild contrast, modestly upscales small images, and caps the longest dimension at 2,600 pixels to limit memory use.
+
+The image bytes are processed locally and are not sent to an OCR API. Tesseract.js and its English recognition data are downloaded from their configured CDNs on first use. The extracted text, rather than the original image, is sent to /api/ingest and then follows the existing selected chunking, Cohere embedding, optional GraphRAG indexing, versioning, and RBAC path. Image versions use an .ocr.txt storage suffix; no database migration is required.
+
+Before chunking, normalize_extracted_text() normalizes Unicode and whitespace, removes NUL/zero-width/soft-hyphen artifacts, and conservatively repairs words split by hyphenated line wraps while retaining common true hyphenated compounds. OCR-only layout cleanup joins ordinary wrapped prose lines but preserves paragraph boundaries, recognizable headings, list items and table-like rows. This ensures chunk offsets and content refer to the same normalized text written to storage. Low-confidence OCR results are allowed to be reviewed and published, but the UI displays a warning when Tesseract reports confidence below 55.
+
+Current OCR language is English (eng). PDF handling remains unchanged: a PDF with no selectable text still needs its pages uploaded as images or its text supplied manually; OCR for scanned PDFs is not part of this change.
