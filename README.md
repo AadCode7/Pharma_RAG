@@ -1,14 +1,5 @@
 # Pharma RAG — V1 (Python / FastAPI)
 
-Baseline RAG system: fixed-size chunking, dense retrieval, Groq generation,
-full pipeline tracing, department-scoped RBAC. See `architecture.md` for the
-full design and `progress.md` for build status and known risks.
-
-This is a rewrite of the original Node.js/Vercel-functions version into a
-single FastAPI app — same schema, same governance model, same frontend
-behavior, different backend language. See `progress.md` for what changed
-in the process.
-
 ## Project structure
 
 ```
@@ -45,17 +36,6 @@ utils/                             # pure helpers (chunking, hashing)
 
 
 ## 2. Local setup
-
-```bash
-python -m venv .venv
-source .venv/bin/activate        # .venv\Scripts\activate on Windows
-pip install -r requirements.txt
-cp .env.example .env             # then fill in your keys
-# Optional only for local-browser mode without CRAWL4AI_API_KEY:
-pip install crawl4ai==0.9.5
-crawl4ai-setup
-uvicorn api.main:app --reload
-```
 
 Visit `http://localhost:8000`.
 
@@ -103,24 +83,6 @@ does not need to package or launch Chromium:
 3. Redeploy the website-ingestion branch and test with a public page such as
    `https://quotes.toscrape.com/`.
 
-Crawl4AI's current documentation advertises 1,000 free credits per month, with
-rate/concurrency limits; check its dashboard for current usage and pricing.
-The hosted API returns Markdown and page metadata, and the application keeps
-the existing URL/title/section/chunk provenance and ingestion pipeline.
-
-The default `requirements.txt` intentionally does **not** install the large
-`crawl4ai` browser package. This also avoids the earlier Vercel function-size
-limit. For local development without a cloud key, install the optional browser
-backend with `pip install crawl4ai==0.9.5`, then run `crawl4ai-setup`.
-Alternatively, a local installation can use `CRAWL4AI_CDP_URL` to connect to
-a trusted remote Chromium endpoint. If `CRAWL4AI_API_KEY` is set, the hosted
-API takes precedence and the local browser is not launched.
-
-`vercel.json` still uses the legacy `builds` configuration. Its warning
-about dashboard Build and Development Settings is separate from website crawling;
-do not remove `builds` unless intentionally migrating the app's routing.
-Normal file, PDF, image OCR, and pasted-text paths do not depend on Chromium.
-
 ## 5. What's implemented in V1
 
 - Fixed-size chunking (`utils/text.py`), tagged `fixed_size_v1` so V2
@@ -136,17 +98,6 @@ Normal file, PDF, image OCR, and pasted-text paths do not depend on Chromium.
 - RBAC: `manager` (upload/edit) vs `employee` (query-only), with
   department-based document visibility enforced via Postgres RLS.
 
-## 6. What's deliberately out of scope for V1
-
-- Evaluation numbers — schema and empty-state UI are in place, but no golden
-  query set exists yet, so Recall@k/Precision@k have nothing to compute
-  against yet (next milestone — see `progress.md`).
-- DOCX parsing — DOCX extraction is not implemented. Uploads support `.txt`/`.md`, selectable-text PDFs, and JPG/JPEG/PNG/WebP images. Image text is extracted locally in the browser with Tesseract.js before the existing ingestion pipeline runs.
-- S3 sync — the schema (`sync_jobs`) anticipates it, the job itself isn't built.
-- Everything in the V2 plan: chunking strategy comparisons, multiple
-  embedding models, BM25/hybrid retrieval, reranking.
-
-
 ## GraphRAG and GraphRAG + Hybrid Vector Search
 
 This branch adds two selectable query strategies:
@@ -154,26 +105,3 @@ This branch adds two selectable query strategies:
 - **GraphRAG**: extracts source-grounded subject–predicate–object relationships during upload, matches query entities, explores the visible graph to two hops, and uses the supporting document chunks as LLM context.
 - **GraphRAG + Hybrid Vector Search**: fuses graph-derived passages with the existing dense semantic + BM25 retrieval using Reciprocal Rank Fusion (RRF).
 
-### Setup and use
-
-1. Apply `database/migrations/0004_graph_rag.sql` in Supabase SQL Editor.
-2. Set `GROQ_API_KEY` and `COHERE_API_KEY` in the backend environment. Groq is used for graph extraction; Cohere remains the embedding provider.
-3. Deploy this branch. In Knowledge Base, keep **Build knowledge graph during upload** checked when publishing or republishing a document version. The upload response reports graph indexing status and relationship counts.
-4. Ask a question on the Query page and select either graph strategy. The response shows the graph relationships tied to the source chunks actually passed to answer generation. Those triples are also sent as untrusted retrieval hints in the answer prompt, mapped to the numbered source block that supports each relationship; source passages remain the evidence used for factual claims.
-
-Existing documents are not backfilled automatically. Republish each version that should become available to GraphRAG. If graph extraction fails, the successfully published vector index remains available and the manager UI reports the failure; check backend logs and republish to retry. Graph extraction adds Groq calls and can increase upload latency, especially for long documents.
-
-**Data handling note:** enabling graph indexing sends selected document passages (up to 2,600 characters per chunk, in small batches) to the configured Groq API for relationship extraction. Cohere is already used for embeddings, and selecting Cohere reranking sends retrieved query/passages to Cohere. Check your pharmaceutical-data, privacy, and vendor policies before sending confidential content to any hosted provider.
-
-Graph rows are attached to chunk IDs. The graph retrieval SQL function applies department-based visibility, active chunk checks, and the current document-version pointer before returning edges. Do not query graph tables directly from browser code.
-
-
-## Website URL ingestion
-
-Managers can enter one public page URL in the Knowledge Base form instead of uploading a file or pasting text. Crawl4AI 0.9.5 uses headless Playwright Chromium to render JavaScript-driven pages and convert the content to structured Markdown. The result is whitespace-normalized and sent through the existing selected chunking, Cohere embedding, versioning, and optional GraphRAG pipeline.
-
-Website chunks include the final source URL, page title, detected heading breadcrumb, and 1-based chunk position/count. The page URL is also stored in the existing `documents.source_uri` field; no database migration is required. Very long pages are capped at 120,000 characters and the upload response notes when truncation occurred. This is one page per upload, not a recursive website-wide crawl.
-
-The crawler rejects non-HTTP(S) URLs, embedded credentials, nonstandard ports, localhost/internal hostnames, private/reserved literal IPs and DNS results. Browser requests and redirects are also checked. This is application-level egress protection; production deployments should additionally restrict outbound network access at the hosting/network layer. Crawl only public content you are authorized to ingest, and review website terms and robots guidance.
-
-Local setup requires `crawl4ai-setup` (or `python -m playwright install chromium`) after installing requirements. On Vercel or another serverless host, provide a compatible Chromium build or a trusted remote CDP endpoint through `CRAWL4AI_CDP_URL`. Website ingestion returns a clear upstream error if Crawl4AI/Chromium is unavailable; existing ingestion methods remain available.
