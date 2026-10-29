@@ -113,4 +113,4 @@ The /eval page evaluates recent saved pipeline traces without calling an LLM jud
 
 Before using it, apply database/migrations/0004_trace_evaluation.sql in the Supabase SQL editor. The first version calculates Recall@K, Precision@K and MRR@K when relevant-document labels exist; context token recall, answer token F1 and ROUGE-L when a reference answer exists; and recorded latency for all selected traces. Missing labels are reported as unavailable rather than treated as zero. Text-overlap metrics are not a factuality or faithfulness judge.
 
-The implementation adds no runtime dependency and makes no paid evaluation calls. Run the unit tests with python -m unittest tests.test_evaluation_service.
+The implementation adds no runtime dependency and makes no paid evaluation calls. Run the unit tests with python -m unittest discover -s tests -p test_evaluation_service.py.
