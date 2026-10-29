@@ -202,3 +202,17 @@ Before crawling, the URL is normalized and validated as HTTP(S), credentials are
 Markdown whitespace/Unicode cleanup happens before chunking. Once chunk boundaries are known, every website chunk gets a compact provenance prefix: final source URL, page title, current heading breadcrumb, and 1-based chunk index/count. Parent context receives source/title/section context too. Character offsets remain relative to the unprefixed Markdown. The same enriched text is persisted and embedded so URL and section information are present in retrieval context. The page URL is stored in the existing `documents.source_uri`; no SQL migration is needed. Existing text, Markdown, PDF, and image-OCR chunk content is not enriched or otherwise changed.
 
 The default `requirements.txt` avoids installing the large browser package to keep Vercel functions within normal bundle limits. Local-browser mode requires `pip install crawl4ai==0.9.5` and `crawl4ai-setup`; alternatively set `CRAWL4AI_CDP_URL` for a trusted remote Chromium endpoint. `CRAWL4AI_API_KEY` takes precedence whenever it is configured, and the secret is never exposed to the browser client.
+
+
+## 12. Free trace-based evaluation
+
+The /eval page selects existing pipeline traces instead of requiring users to re-enter recent queries. GET /api/evaluation/traces reads traces through the authenticated user's Supabase client, preserving the existing trace visibility policy. POST /api/evaluation/run verifies selected trace visibility before computing or persisting metrics.
+
+The first version is deliberately deterministic and does not make any LLM-as-a-judge calls or additional paid API calls. Supported metrics:
+
+- **Recall@K, Precision@K, MRR@K:** computed only when the user supplies relevant document UUIDs; results with missing labels are null and excluded from aggregate averages.
+- **Context token recall:** proportion of unique reference-answer tokens appearing in the retrieved chunk text.
+- **Answer token F1 and ROUGE-L:** reference-based lexical overlap scores; they measure text similarity, not correctness or faithfulness.
+- **Recorded latency and retrieved chunk count:** copied from the original trace.
+
+Evaluation run snapshots are stored in eval_trace_runs and eval_trace_results, scoped by user_id. Apply database/migrations/0004_trace_evaluation.sql before using the page. Evaluation reuses stored traces and does not rerun generation. A later benchmark workflow can rerun the same query set across strategies and optionally add free/local RAGAS metrics without introducing a paid judge.
