@@ -1049,3 +1049,52 @@ pre.prompt-block-muted {
   vertical-align: middle;
   white-space: nowrap;
 }
+
+
+/* ===========================================================
+   Free, trace-based RAG evaluation
+=========================================================== */
+.eval-panel { min-width: 0; }
+.eval-explainer { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 0.8rem 1rem; margin-bottom: 1.4rem; font-size: 0.84rem; }
+.eval-explainer p { margin: 0.25rem 0 0; color: var(--ink-soft); }
+.eval-section { border-top: 1px solid var(--line); padding-top: 1.2rem; margin-top: 1.4rem; }
+.eval-section h3 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.eval-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.eval-section-head p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.82rem; }
+.eval-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 0.6rem; margin: 1rem 0; }
+.eval-k-field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; }
+.eval-k-field select { border: 1px solid var(--line); border-radius: 4px; padding: 0.55rem; background: var(--surface); }
+.eval-status { color: var(--muted); font-size: 0.82rem; margin: 0.6rem 0; }
+.eval-status.is-error { color: var(--error); }
+.eval-trace-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.eval-trace-card { border: 1px solid var(--line); border-radius: 5px; background: var(--surface); padding: 0.85rem; }
+.eval-trace-card.is-selected { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.eval-trace-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+.eval-trace-check { display: flex; align-items: flex-start; gap: 0.65rem; min-width: 0; font-weight: 600; }
+.eval-trace-check input { margin-top: 0.35rem; }
+.eval-trace-query { white-space: pre-wrap; overflow-wrap: anywhere; }
+.eval-trace-date { flex: 0 0 auto; color: var(--muted); font-size: 0.7rem; }
+.eval-trace-meta { margin: 0.4rem 0 0.8rem; color: var(--muted); font-family: var(--font-data); font-size: 0.68rem; }
+.eval-reference-fields { display: grid; grid-template-columns: 1fr 1.5fr; gap: 0.75rem; }
+.eval-reference-fields label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.76rem; color: var(--ink-soft); }
+.eval-reference-fields input, .eval-reference-fields textarea { width: 100%; border: 1px solid var(--line); border-radius: 4px; padding: 0.55rem; background: var(--bg); font-size: 0.78rem; font-weight: 400; resize: vertical; }
+.eval-reference-fields input:disabled, .eval-reference-fields textarea:disabled { opacity: 0.55; }
+.eval-trace-sources { margin-top: 0.7rem; color: var(--muted); font-size: 0.75rem; }
+.eval-trace-sources summary { cursor: pointer; color: var(--accent); }
+.eval-trace-sources ol { padding-left: 1.5rem; }
+.eval-trace-sources li { margin: 0.4rem 0; overflow-wrap: anywhere; }
+.eval-run-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; }
+.eval-run-actions span { font-family: var(--font-data); font-size: 0.75rem; color: var(--muted); }
+.eval-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.65rem; margin: 1rem 0; }
+.eval-metric-card { border: 1px solid var(--line); background: var(--surface); padding: 0.8rem; border-radius: 5px; min-width: 0; }
+.eval-metric-label { color: var(--muted); font-size: 0.73rem; margin: 0 0 0.35rem; }
+.eval-metric-value { display: block; font-family: var(--font-data); font-size: 1.25rem; font-weight: 500; overflow-wrap: anywhere; }
+.eval-metric-coverage { margin: 0.3rem 0 0; color: var(--muted); font-size: 0.66rem; }
+.eval-table-wrap { overflow-x: auto; }
+.eval-results-table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
+.eval-results-table th, .eval-results-table td { padding: 0.65rem; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.eval-results-table th { font-weight: 600; color: var(--ink-soft); background: var(--bg); }
+.eval-results-table td.eval-query-cell { white-space: normal; min-width: 220px; max-width: 360px; overflow-wrap: anywhere; }
+.eval-footnote { color: var(--muted); font-size: 0.75rem; margin-top: 0.8rem; }
+@media (max-width: 1000px) { .eval-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .eval-reference-fields { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .eval-trace-head, .eval-section-head { flex-direction: column; } .eval-trace-date { padding-left: 1.5rem; } .eval-summary-grid { grid-template-columns: 1fr 1fr; } }
