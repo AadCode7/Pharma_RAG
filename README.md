@@ -105,3 +105,12 @@ This branch adds two selectable query strategies:
 - **GraphRAG**: extracts source-grounded subject–predicate–object relationships during upload, matches query entities, explores the visible graph to two hops, and uses the supporting document chunks as LLM context.
 - **GraphRAG + Hybrid Vector Search**: fuses graph-derived passages with the existing dense semantic + BM25 retrieval using Reciprocal Rank Fusion (RRF).
 
+
+
+## Free RAG evaluation
+
+The /eval page evaluates recent saved pipeline traces without calling an LLM judge or any extra paid API. Users can select traces, optionally supply known-relevant document UUIDs and verified reference answers, and calculate deterministic retrieval and text-overlap metrics.
+
+Before using it, apply database/migrations/0004_trace_evaluation.sql in the Supabase SQL editor. The first version calculates Recall@K, Precision@K and MRR@K when relevant-document labels exist; context token recall, answer token F1 and ROUGE-L when a reference answer exists; and recorded latency for all selected traces. Missing labels are reported as unavailable rather than treated as zero. Text-overlap metrics are not a factuality or faithfulness judge.
+
+The implementation adds no runtime dependency and makes no paid evaluation calls. Run the unit tests with python -m unittest discover -s tests -p test_evaluation_service.py.

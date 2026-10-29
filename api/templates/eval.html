@@ -1,15 +1,44 @@
 {% extends "base.html" %}
 {% block title %}Evaluation — Pharma RAG{% endblock %}
 {% block content %}
-<section class="panel">
+<section class="panel eval-panel">
   <header class="panel-header">
-    <h2>Evaluation</h2>
-    <p>Retrieval and generation quality, measured against a labeled query set.</p>
+    <h2>RAG Evaluation</h2>
+    <p>Evaluate real pipeline traces with deterministic, free metrics. No LLM judge or external evaluation API is used.</p>
   </header>
-  <div class="empty-state eval-empty">
-    <p class="eval-empty-title">No evaluation runs yet</p>
-    <p>This dashboard renders Recall@k, Precision@k, MRR, and groundedness scores once a golden query set (questions with known-correct source chunks) is loaded into <code>eval_queries</code>. That's the next V1 milestone — see <code>progress.md</code>.</p>
-    <p>Once it exists, run the eval harness to populate <code>eval_runs</code> / <code>eval_results</code>, and this table fills in automatically — including a side-by-side comparison once V2 strategies are added.</p>
+  <div class="eval-explainer">
+    <strong>How scoring works</strong>
+    <p>Retrieval metrics need relevant document IDs. Reference-based text metrics need an expected answer. Missing labels are reported as unavailable, not scored as zero. Text overlap is a proxy, not a factuality judgment.</p>
   </div>
+  <section class="eval-section">
+    <div class="eval-section-head">
+      <div><h3>1. Select recent queries</h3><p>Choose up to 100 traces. Add optional reference data to enable more quality metrics.</p></div>
+      <button id="eval-refresh" class="btn" type="button">Refresh traces</button>
+    </div>
+    <div class="eval-controls">
+      <label class="eval-k-field" for="eval-k">Evaluate top K
+        <select id="eval-k"><option value="3">3</option><option value="5" selected>5</option><option value="10">10</option><option value="20">20</option></select>
+      </label>
+      <button id="eval-select-visible" class="btn" type="button">Select all loaded</button>
+      <button id="eval-clear-selection" class="btn" type="button">Clear selection</button>
+    </div>
+    <p id="eval-trace-status" class="eval-status" role="status">Loading recent traces…</p>
+    <div id="eval-trace-list" class="eval-trace-list"></div>
+    <div class="eval-run-actions"><span id="eval-selected-count">0 selected</span><button id="eval-run" class="btn btn-primary" type="button" disabled>Run evaluation</button></div>
+  </section>
+  <section id="eval-results-section" class="eval-section" hidden>
+    <div class="eval-section-head"><div><h3>2. Results</h3><p id="eval-run-meta">Latest run</p></div></div>
+    <div id="eval-summary" class="eval-summary-grid"></div>
+    <div class="eval-table-wrap">
+      <table class="eval-results-table">
+        <thead><tr><th>Query</th><th>Retrieval / reranking</th><th>Recall@K</th><th>Precision@K</th><th>MRR@K</th><th>Context token recall</th><th>Answer token F1</th><th>ROUGE-L</th><th>Latency</th></tr></thead>
+        <tbody id="eval-results-body"></tbody>
+      </table>
+    </div>
+    <p class="eval-footnote">Scores are averages over queries with available labels only. Recall/precision/MRR use relevant document IDs you supplied. Context token recall and answer text scores use simple token overlap and do not establish factual correctness.</p>
+  </section>
 </section>
+{% endblock %}
+{% block page_script %}
+<script src="{{ url_for('static', path='js/eval.js') }}"></script>
 {% endblock %}

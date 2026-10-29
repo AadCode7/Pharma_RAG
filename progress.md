@@ -274,3 +274,13 @@ The website-crawling branch originally hit `LAMBDA_SIZE_EXCEEDED` at 700.86 MB b
 - Documented the official Large Functions opt-in for existing eligible Vercel projects: `VERCEL_SUPPORT_LARGE_FUNCTIONS=1`, with Fluid Compute and Active CPU. The value must be configured in Vercel Project Settings / CLI, not committed as an app secret or browser-visible variable.
 - Kept the existing `vercel.json` legacy `builds` and routing intact; the warning about project Build/Development Settings being ignored is not the 700.86 MB failure itself.
 - The Large Functions setting is no longer required solely for website crawling after the optional browser dependency was removed from default requirements. It may remain configured; test the new deployment's bundle size and set `CRAWL4AI_API_KEY` before testing URL ingestion.
+
+
+## Free trace-based RAG evaluation (feature/free-rag-evaluation)
+
+- Added an authenticated evaluation API that reuses existing traces rows and only returns traces visible to the signed-in user.
+- Added a frontend workflow at /eval: load recent traces, select queries, optionally enter verified reference answers and relevant document UUIDs, choose K, run evaluation, and inspect aggregate/per-query results.
+- Added deterministic, no-LLM metrics: Recall@K, Precision@K, MRR@K (when relevant document IDs are provided), context token recall, answer token F1, ROUGE-L (when a reference answer is provided), retrieved chunk count, and recorded latency. These are deliberately not presented as a factuality judge.
+- Added database/migrations/0004_trace_evaluation.sql to persist run summaries/results under per-user RLS. Apply it in the Supabase SQL editor before using the evaluation page.
+- No paid evaluator or additional runtime Python package is used. This first pass uses deterministic metrics rather than calling RAGAS metrics that require an LLM/embedding provider; it leaves a clean trace-based evaluation record for a later RAGAS integration using explicitly selected free/local metrics.
+- Added unit tests in tests/test_evaluation_service.py. Tests have not yet been executed against a local environment or deployed Supabase instance.
