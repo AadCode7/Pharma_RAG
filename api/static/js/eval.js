@@ -82,6 +82,7 @@ function renderEvaluationTraces() {
     relevantInput.placeholder = 'Paste known-relevant document UUIDs';
     relevantInput.dataset.traceId = id;
     relevantInput.value = trace._evalRelevantDocumentIds || '';
+    relevantInput.addEventListener('input', function () { trace._evalRelevantDocumentIds = relevantInput.value; });
     relevantInput.disabled = !selectedTraceIds.has(id);
     relevantLabel.appendChild(relevantInput);
 
@@ -93,6 +94,7 @@ function renderEvaluationTraces() {
     answerInput.placeholder = 'Enter a verified reference answer for text-overlap metrics';
     answerInput.dataset.traceId = id;
     answerInput.value = trace._evalReferenceAnswer || '';
+    answerInput.addEventListener('input', function () { trace._evalReferenceAnswer = answerInput.value; });
     answerInput.disabled = !selectedTraceIds.has(id);
     answerLabel.appendChild(answerInput);
     labels.append(relevantLabel, answerLabel);
