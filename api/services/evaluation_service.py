@@ -70,7 +70,7 @@ def evaluate_trace(trace: dict[str, Any], item: dict[str, Any], k: int) -> dict[
     relevant_retrieved = len(set(top_k_ids) & relevant_set)
 
     recall_at_k = relevant_retrieved / len(relevant_set) if relevant_set else None
-    precision_at_k = relevant_retrieved / len(top_k_ids) if relevant_set and top_k_ids else (0.0 if relevant_set else None)
+    precision_at_k = relevant_retrieved / k if relevant_set else None
     mrr_at_k = 1 / hits[0] if hits else (0.0 if relevant_set else None)
 
     reference_answer = (item.get("reference_answer") or "").strip()
