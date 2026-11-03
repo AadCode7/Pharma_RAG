@@ -2,10 +2,33 @@
 {% block title %}Query — Pharma RAG{% endblock %}
 {% block content %}
 <section class="panel">
-  <header class="panel-header">
-    <h2>Query</h2>
-    <p>Ask a question and choose how the RAG pipeline should retrieve and rank evidence.</p>
-  </header>
+  <div class="page-intro-layout">
+    <header class="panel-header">
+      <h2>Query</h2>
+      <p>Ask a question and choose how the RAG pipeline should retrieve and rank evidence.</p>
+    </header>
+    <aside class="strategy-guide" aria-labelledby="retrieval-guide-title">
+      <h3 id="retrieval-guide-title">Choosing retrieval and reranking</h3>
+      <p class="strategy-guide-intro">Match the strategy to the wording and complexity of the question. Start with Hybrid for mixed pharmaceutical queries, then compare results in the trace and evaluation pages.</p>
+      <ul>
+        <li><strong>Dense Retrieval (Semantic)</strong> — best for natural-language questions, paraphrases and concept searches where the same idea may use different words.</li>
+        <li><strong>BM25</strong> — best for exact terms such as drug names, compound codes, SOP numbers, equipment IDs, clause numbers and specific phrases.</li>
+        <li><strong>TF-IDF</strong> — a lightweight lexical baseline for straightforward keyword-focused queries. Prefer BM25 for most exact-term searches.</li>
+        <li><strong>Hybrid</strong> — combines semantic and BM25 results. A strong general choice when queries contain both concepts and exact terminology.</li>
+        <li><strong>HyDE</strong> — useful for broad or descriptive questions where the user's wording differs greatly from the wording in the source documents. It creates a hypothetical passage for retrieval; the final answer still uses real retrieved passages.</li>
+        <li><strong>MMR</strong> — useful when the top results are repetitive or many chunks come from the same document. It balances relevance with content diversity.</li>
+        <li><strong>GraphRAG</strong> — best for multi-hop questions about relationships, such as which medicine is associated with a condition, procedure, contraindication or requirement, when those links were extracted into the graph.</li>
+        <li><strong>GraphRAG + Hybrid Vector Search</strong> — a good choice for relationship questions that may also need direct semantic or exact-term evidence. It combines graph, dense and BM25 rankings.</li>
+      </ul>
+      <div class="strategy-guide-note">
+        <strong>Reranking happens after retrieval</strong>
+        <p><strong>No Reranking:</strong> fastest and simplest. Use when the initial ranking is already good or latency matters most.</p>
+        <p><strong>Cohere Rerank (Cross-Encoder):</strong> useful when the initial candidate list contains near-matches and you need more precise query-to-passage relevance ordering. It scores each query-passage pair; hosted API usage limits apply.</p>
+        <p><strong>LLM Reranker (Groq):</strong> useful for nuanced questions where relevance depends on context, but can be slower and is subject to model availability and free-tier limits.</p>
+      </div>
+      <p class="strategy-guide-footnote">Practical starting point: Hybrid + Cohere Rerank for mixed, high-precision searches; BM25 for identifiers; GraphRAG + Hybrid for relationship questions. Compare latency and retrieved passages before settling on a default.</p>
+    </aside>
+  </div>
 
   <form id="query-form" class="query-form">
     <textarea id="query-input" placeholder="e.g. What's the current storage temperature requirement for Compound X?" rows="3" required></textarea>
