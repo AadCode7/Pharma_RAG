@@ -2,12 +2,11 @@
 {% block title %}Knowledge Base — Pharma RAG{% endblock %}
 {% block content %}
 <section class="panel">
-  <div class="page-intro-layout">
-    <header class="panel-header">
+  <header class="panel-header">
       <h2>Knowledge Base</h2>
       <p>Publish a document version from text, an image, a PDF, or a public website URL. All sources use your selected chunking and embedding strategies.</p>
-    </header>
-    <aside class="strategy-guide" aria-labelledby="chunking-guide-title">
+  </header>
+  <aside class="strategy-guide" aria-labelledby="chunking-guide-title">
       <h3 id="chunking-guide-title">Choosing a chunking strategy</h3>
       <p class="strategy-guide-intro">Choose based on how the source is organised. There is no single best method for every document.</p>
       <ul>
@@ -29,8 +28,7 @@
         <p>Enable graph indexing for entity-rich content that describes relationships: drug monographs, SOPs, clinical protocols, product specifications, safety guidance, and linked technical or regulatory pages. Graphs help connect entities such as medicines, ingredients, conditions, procedures, equipment and requirements across passages.</p>
         <p>Graphs add less value to short, isolated notes, generic prose with few named entities, or poor OCR. Tables can be valuable when their headers and row relationships are preserved in the extracted text.</p>
       </div>
-    </aside>
-  </div>
+  </aside>
 
   <form id="upload-form" class="upload-form">
     <label>
