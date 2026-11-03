@@ -223,3 +223,7 @@ Evaluation run snapshots are stored in eval_trace_runs and eval_trace_results, s
 The Knowledge Base page presents source-aware chunking guidance alongside the upload heading. It explains the trade-offs of fixed-size, recursive, sentence-based, semantic, section-aware and parent/child chunking, with practical suggestions for text/PDF, OCR-extracted images and websites. It also describes when entity-rich documents benefit from graph indexing and notes that poor OCR or flattened tables can reduce graph quality.
 
 The Query page presents retrieval and reranking guidance alongside its heading. It describes suitable use cases for dense, BM25, TF-IDF, hybrid, HyDE, MMR, GraphRAG and GraphRAG + hybrid retrieval, as well as no reranking, Cohere reranking and Groq LLM reranking. These panels are explanatory UI only: they do not automatically change the selected strategy or alter pipeline behavior.
+
+
+### Strategy guidance layout refinement
+The strategy guide now has a wider dedicated right-side column on desktop. Pages containing a guide expand to use the available content width while preserving the fixed documents rail. Query and upload forms remain in the left column with a reserved gap. Guide typography, line height, padding, and list spacing are increased for readability. At tablet/mobile widths, the guide returns to normal document flow above the form. This is a presentation-only change and does not alter pipeline behavior.
