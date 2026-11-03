@@ -293,3 +293,10 @@ The website-crawling branch originally hit `LAMBDA_SIZE_EXCEEDED` at 700.86 MB b
 - Added Query-page guidance for Dense, BM25, TF-IDF, Hybrid, HyDE, MMR, GraphRAG and GraphRAG + Hybrid, plus No Reranking, Cohere Rerank and Groq LLM Reranking.
 - Guidance is static UI content; no API calls, strategy behavior, dependencies or ingestion/query execution paths were changed.
 - Verification: source-level review only; browser rendering and live deployment have not been tested.
+
+
+### Strategy guidance panel readability pass
+- Expanded the content canvas on pages containing a strategy guide so the fixed documents rail no longer leaves the guide squeezed into a narrow 330px column.
+- Increased the guide width to a responsive 390–470px range, improved typography, line height, internal padding, and spacing between guidance items.
+- Kept query and upload controls in their own left column with a clear gap; on narrower screens the guide stacks above the form instead of overlapping it.
+- CSS-only presentation change; retrieval, reranking, ingestion, and evaluation behavior are unchanged.
