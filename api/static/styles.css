@@ -1101,47 +1101,74 @@ pre.prompt-block-muted {
 
 
 
-/* Strategy guidance occupies the unused right column without moving forms. */
+/* Strategy guidance uses a dedicated right column on wide screens.
+   Expand the content canvas first so the guide never has to squeeze over
+   the query/upload controls. */
+.content:has(.strategy-guide) {
+  width: 100%;
+  max-width: none;
+  padding-right: 2.5rem;
+}
 .panel { position: relative; }
 .strategy-guide {
   position: absolute;
   top: 0;
   right: 0;
-  width: min(330px, 38%);
-  max-height: min(72vh, 680px);
+  width: clamp(390px, 36%, 470px);
+  max-height: min(78vh, 760px);
   overflow-y: auto;
   overscroll-behavior: contain;
   box-sizing: border-box;
   border: 1px solid var(--line);
   border-left: 3px solid var(--accent);
-  border-radius: 4px;
-  background: var(--bg);
-  padding: 0.85rem 1rem;
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 1.25rem 1.4rem;
   color: var(--ink-soft);
-  font-size: 0.78rem;
-  line-height: 1.45;
+  font-size: 0.88rem;
+  line-height: 1.62;
   z-index: 1;
+  scrollbar-gutter: stable;
 }
-.strategy-guide h3 { margin: 0 0 0.3rem; color: var(--ink); font-size: 0.92rem; font-weight: 600; }
-.strategy-guide p { margin: 0 0 0.5rem; }
+.strategy-guide h3 {
+  margin: 0 0 0.65rem;
+  color: var(--ink);
+  font-size: 1.05rem;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.strategy-guide p { margin: 0 0 0.8rem; }
 .strategy-guide-intro { color: var(--muted); }
-.strategy-guide ul { margin: 0.4rem 0 0.65rem; padding-left: 1.05rem; }
-.strategy-guide li { margin: 0 0 0.35rem; }
+.strategy-guide ul { margin: 0.65rem 0 1rem; padding-left: 1.2rem; }
+.strategy-guide li { margin: 0 0 0.7rem; padding-left: 0.15rem; }
+.strategy-guide li:last-child { margin-bottom: 0; }
 .strategy-guide li strong, .strategy-guide-note strong { color: var(--ink); }
-.strategy-guide-note { border-top: 1px solid var(--line); padding-top: 0.55rem; margin-top: 0.6rem; }
-.strategy-guide-note p:last-child { margin-bottom: 0; }
-.strategy-guide-footnote { border-top: 1px solid var(--line); padding-top: 0.55rem; margin: 0 !important; }
-.upload-form { max-width: 560px; }
-.query-form { max-width: 560px; }
-@media (max-width: 1100px) {
-  .strategy-guide { width: min(300px, 36%); font-size: 0.74rem; padding: 0.7rem 0.8rem; }
+.strategy-guide-note {
+  border-top: 1px solid var(--line);
+  padding-top: 0.9rem;
+  margin-top: 1rem;
 }
-@media (max-width: 780px) {
+.strategy-guide-note p { margin: 0 0 0.75rem; }
+.strategy-guide-note p:last-child { margin-bottom: 0; }
+.strategy-guide-footnote {
+  border-top: 1px solid var(--line);
+  padding-top: 0.9rem;
+  margin: 1rem 0 0 !important;
+}
+.upload-form { max-width: min(680px, calc(100% - 510px)); }
+.query-form { max-width: min(720px, calc(100% - 510px)); }
+@media (max-width: 1100px) {
+  .content:has(.strategy-guide) { padding-right: 1.5rem; }
   .strategy-guide {
     position: static;
     width: 100%;
-    max-height: 340px;
-    margin: 0 0 1rem;
+    max-height: 440px;
+    margin: 0 0 1.5rem;
   }
+  .query-form, .upload-form { max-width: 720px; }
+}
+@media (max-width: 780px) {
+  .content:has(.strategy-guide) { padding-right: 1.5rem; }
+  .strategy-guide { max-height: 380px; padding: 1rem; }
   .query-form, .upload-form { max-width: none; }
 }
