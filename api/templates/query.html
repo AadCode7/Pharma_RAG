@@ -2,12 +2,11 @@
 {% block title %}Query — Pharma RAG{% endblock %}
 {% block content %}
 <section class="panel">
-  <div class="page-intro-layout">
-    <header class="panel-header">
+  <header class="panel-header">
       <h2>Query</h2>
       <p>Ask a question and choose how the RAG pipeline should retrieve and rank evidence.</p>
-    </header>
-    <aside class="strategy-guide" aria-labelledby="retrieval-guide-title">
+  </header>
+  <aside class="strategy-guide" aria-labelledby="retrieval-guide-title">
       <h3 id="retrieval-guide-title">Choosing retrieval and reranking</h3>
       <p class="strategy-guide-intro">Match the strategy to the wording and complexity of the question. Start with Hybrid for mixed pharmaceutical queries, then compare results in the trace and evaluation pages.</p>
       <ul>
@@ -27,8 +26,7 @@
         <p><strong>LLM Reranker (Groq):</strong> useful for nuanced questions where relevance depends on context, but can be slower and is subject to model availability and free-tier limits.</p>
       </div>
       <p class="strategy-guide-footnote">Practical starting point: Hybrid + Cohere Rerank for mixed, high-precision searches; BM25 for identifiers; GraphRAG + Hybrid for relationship questions. Compare latency and retrieved passages before settling on a default.</p>
-    </aside>
-  </div>
+  </aside>
 
   <form id="query-form" class="query-form">
     <textarea id="query-input" placeholder="e.g. What's the current storage temperature requirement for Compound X?" rows="3" required></textarea>
