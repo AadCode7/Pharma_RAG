@@ -3,9 +3,32 @@
 {% block content %}
 <section class="panel">
   <header class="panel-header">
-    <h2>Knowledge Base</h2>
-    <p>Publish a document version from text, an image, a PDF, or a public website URL. All sources use your selected chunking and embedding strategies.</p>
+      <h2>Knowledge Base</h2>
+      <p>Publish a document version from text, an image, a PDF, or a public website URL. All sources use your selected chunking and embedding strategies.</p>
   </header>
+  <aside class="strategy-guide" aria-labelledby="chunking-guide-title">
+      <h3 id="chunking-guide-title">Choosing a chunking strategy</h3>
+      <p class="strategy-guide-intro">Choose based on how the source is organised. There is no single best method for every document.</p>
+      <ul>
+        <li><strong>Recursive Character</strong> — a good general-purpose starting point for mixed or inconsistently formatted text. It splits at natural boundaries where possible.</li>
+        <li><strong>Section Aware</strong> — best for SOPs, policies, regulatory guidance, manuals and structured websites with clear headings. It keeps each heading with its section.</li>
+        <li><strong>Parent / Child</strong> — useful for long technical documents where small, precise matches need the surrounding paragraph or section for context.</li>
+        <li><strong>Semantic</strong> — useful for continuous explanatory prose, research summaries and articles where topic changes matter more than fixed lengths. It groups sentences with similar meaning.</li>
+        <li><strong>Sentence Based</strong> — useful for short FAQs, articles and text where sentence boundaries must stay intact.</li>
+        <li><strong>Fixed Size</strong> — a predictable baseline for simple, consistently written text. It can split a sentence or section, so it is less suitable for heavily structured material.</li>
+      </ul>
+      <div class="strategy-guide-note">
+        <strong>By source type</strong>
+        <p><strong>PDFs and text:</strong> use Section Aware for clear headings, Parent / Child for long manuals, or Recursive for mixed layouts.</p>
+        <p><strong>Images:</strong> text is extracted with OCR first. Use Section Aware or Recursive for clean OCR; review OCR output when scans are faint, skewed or table-heavy.</p>
+        <p><strong>Websites:</strong> use Section Aware for heading-led pages and Recursive for irregular pages. Page and section metadata are retained during website ingestion.</p>
+      </div>
+      <div class="strategy-guide-note">
+        <strong>When is a knowledge graph most useful?</strong>
+        <p>Enable graph indexing for entity-rich content that describes relationships: drug monographs, SOPs, clinical protocols, product specifications, safety guidance, and linked technical or regulatory pages. Graphs help connect entities such as medicines, ingredients, conditions, procedures, equipment and requirements across passages.</p>
+        <p>Graphs add less value to short, isolated notes, generic prose with few named entities, or poor OCR. Tables can be valuable when their headers and row relationships are preserved in the extracted text.</p>
+      </div>
+  </aside>
 
   <form id="upload-form" class="upload-form">
     <label>
