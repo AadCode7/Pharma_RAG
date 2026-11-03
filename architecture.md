@@ -216,3 +216,10 @@ The first version is deliberately deterministic and does not make any LLM-as-a-j
 - **Recorded latency and retrieved chunk count:** copied from the original trace.
 
 Evaluation run snapshots are stored in eval_trace_runs and eval_trace_results, scoped by user_id. Apply database/migrations/0004_trace_evaluation.sql before using the page. Evaluation reuses stored traces and does not rerun generation. A later benchmark workflow can rerun the same query set across strategies and optionally add free/local RAGAS metrics without introducing a paid judge.
+
+
+## 10. In-app strategy selection guidance
+
+The Knowledge Base page presents source-aware chunking guidance alongside the upload heading. It explains the trade-offs of fixed-size, recursive, sentence-based, semantic, section-aware and parent/child chunking, with practical suggestions for text/PDF, OCR-extracted images and websites. It also describes when entity-rich documents benefit from graph indexing and notes that poor OCR or flattened tables can reduce graph quality.
+
+The Query page presents retrieval and reranking guidance alongside its heading. It describes suitable use cases for dense, BM25, TF-IDF, hybrid, HyDE, MMR, GraphRAG and GraphRAG + hybrid retrieval, as well as no reranking, Cohere reranking and Groq LLM reranking. These panels are explanatory UI only: they do not automatically change the selected strategy or alter pipeline behavior.
